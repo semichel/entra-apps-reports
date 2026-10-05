@@ -2,6 +2,8 @@
 
 Use a private repository because the article and live application inventory contain internal administration information. Generated reports are workflow artifacts; they are not committed into the source branch.
 
+Current repository: [semichel/entra-apps-reports](https://github.com/semichel/entra-apps-reports), private. The `lab` environment, its tenant-ID variable and the `main` deployment restriction are already configured. Demo execution and artifact upload have passed. Complete the application identity, consent, federated credential and client-ID variable steps below to enable live reporting.
+
 ## Prepare lab authentication
 
 An authorized **MichelAB** administrator performs the following one-time setup:

@@ -2,6 +2,8 @@
 
 Read-only enterprise application configuration reports based on the supplied SSO guide.
 
+Private repository: [semichel/entra-apps-reports](https://github.com/semichel/entra-apps-reports).
+
 **Test tenant:** MichelAB / `Betancoraleman.onmicrosoft.com`  
 **Tenant ID:** `37dadda4-f2a4-47a8-8482-d40fe1a5aa48`
 
@@ -65,6 +67,8 @@ See [report requirements](docs/report-requirements.md) for the mapping from the 
 
 The article contains guidance that needs protocol-specific interpretation. Optional claims, implicit token settings and the presence of certificates alone cannot prove successful or secure authentication. Sign-in logs, Conditional Access, app-side TLS, emitted tokens and delivery-form comparisons need separate evidence. Entra Premium P2 is suspended in this lab; the report does not attempt PIM, Conditional Access writes or entitlement management.
 
-## Verified locally
+## Validation
 
 Offline tests cover dictionary helpers, pagination, tenant and URL guards, secret omission, credential expiry/lifetime rules, HTML escaping and the complete demo export. Live access was attempted using an existing reader certificate, but it expired on **1 October 2026**. No live report is claimed until a valid authorized authentication method is configured.
+
+GitHub validation and the [first demo runner execution](https://github.com/semichel/entra-apps-reports/actions/runs/37292550523) both succeeded on **5 October 2026**. The demo run published an artifact containing HTML, JSON and CSV. The `lab` GitHub environment and `LAB_TENANT_ID` variable are configured, with deployment limited to `main`. `LAB_CLIENT_ID`, Graph consent and federation remain to be configured for live runs.
