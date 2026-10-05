@@ -13,7 +13,6 @@ function Read-ReportDeployment {
         $parsed = [guid]::Empty
         if (-not [guid]::TryParse((Get-Str $config $field), [ref]$parsed) -or $parsed -eq [guid]::Empty) { throw "Fill $field with the production GUID." }
     }
-    if ((Get-Str $config 'tenantId') -eq '37dadda4-f2a4-47a8-8482-d40fe1a5aa48') { throw 'Production configuration must not point at the MichelAB lab.' }
     if ([string]::IsNullOrWhiteSpace((Get-Str $config 'tenantDisplayName'))) { throw 'Fill tenantDisplayName with the production tenant name.' }
     if ((Get-Str $config 'githubRepository') -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') { throw 'Fill githubRepository with owner/repository.' }
     if ((Get-Str $config 'githubBranch') -notmatch '^[A-Za-z0-9][A-Za-z0-9_./-]*$') { throw 'Fill githubBranch with the trusted deployment branch.' }

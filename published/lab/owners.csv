@@ -1,6 +1,0 @@
-"Application","AppId","ServicePrincipalId","@odata.type","id","displayName"
-"test1","60e29eec-bb7a-493b-a7b0-464fc0f54c4a","8711f1aa-87ff-495e-8460-4f7faef6677b","#microsoft.graph.user","d45419a5-48b5-4475-8ff7-6012e5ddc38a","Admin AU 1"
-"test2","f7ebe9e9-3a06-4f25-8dfe-ff61966490c8","b18ba9ca-5718-4e6a-a283-1b5407578e0a","#microsoft.graph.user","d45419a5-48b5-4475-8ff7-6012e5ddc38a","Admin AU 1"
-"test3","1e9f6247-706f-4998-80a4-e03d2e52a309","76baacf0-d52f-4722-9e09-ff6196bdc348","#microsoft.graph.user","d45419a5-48b5-4475-8ff7-6012e5ddc38a","Admin AU 1"
-"EP-Test-Application","cfa96009-2118-4fd1-8d7c-ce2d048e2597","a13b440d-245c-48e5-a5d4-58998a4ae627","#microsoft.graph.user","d8bf0dd2-fbbe-467b-aee3-212d23992291","Michel Aleman"
-"EP-Test-Application","cfa96009-2118-4fd1-8d7c-ce2d048e2597","a13b440d-245c-48e5-a5d4-58998a4ae627","#microsoft.graph.servicePrincipal","9c78ac1f-e84e-46ad-9f1d-4b32cd146c20","sp-iac-automation"

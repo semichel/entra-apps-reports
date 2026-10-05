@@ -111,7 +111,7 @@ def credential_rows(app, now):
 
 
 def render(report, now=None):
-    from render_maester_report import render as native_render
+    from render_html_report import render as native_render
     return native_render(report, now)
 
 

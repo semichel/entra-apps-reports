@@ -1,10 +1,10 @@
 # Production deployment — manual steps
 
-Start with `config/production.json`. Production is disabled until you complete the steps and set `enabled` to `true`. The existing **Entra application report** workflow has a `prod` option; it uses the GitHub environment named **production**. These files prepare the deployment; they do not create tenant resources, grant permissions or run production queries.
+Start with `config/production.json`. Production is disabled until you complete the steps and set `enabled` to `true`. The single **Entra application report** workflow uses the GitHub environment named **production**. These files prepare the deployment; they do not create tenant resources, grant permissions or run production queries.
 
 ## 1. Choose the repository and confirm the tenant
 
-Use the private GitHub repository approved to hold your production application inventory, owners and sign-in evidence. Copy this project there if a company repository is required. The reader's federation will trust that exact repository. Check the production tenant's **Overview → Tenant ID** in the Entra admin center. Keep the MichelAB lab ID out of the production config.
+Use the private GitHub repository approved to hold your production application inventory, owners and sign-in evidence. Copy this project there if a company repository is required. The reader's federation will trust that exact repository. Check the production tenant's **Overview → Tenant ID** in the Entra admin center.
 
 ## 2. Create the production reader app manually
 
@@ -51,7 +51,7 @@ Validate locally in PowerShell 7. This command contacts no service:
 
 ```powershell
 Set-Location C:\jobb\entra-apps-reports
-pwsh -NoProfile -File .\scripts\Test-ProductionConfig.ps1
+pwsh -NoProfile -File .\scripts\Validate-ProductionConfig.ps1
 ```
 
 It prints the exact issuer, subject, audience and trusted branch for your configuration. Blank or invalid IDs fail with the field name to fill.
@@ -80,11 +80,11 @@ Use the exact subject printed by the validation command. This is the environment
 
 Set `enabled` to `true`, validate the file again, and commit the config and deployment code to the trusted branch in your approved repository. The workflow verifies the repository, branch, tenant and client before reading production.
 
-Open **Actions → Entra application report → Run workflow**. Select the trusted branch and **mode: prod**, then click **Run workflow**. Approve the environment deployment if a reviewer is configured.
+Open **Actions → Entra application report → Run workflow**. Select the trusted branch, then click **Run workflow**. Approve the environment deployment if a reviewer is configured.
 
 The job runs on one GitHub-hosted Ubuntu runner. It signs in through federation, verifies the Graph context and reads the configured tenant. Rule failures are report observations; they do not fail the runner. Authentication or required inventory failures do fail it. Reports identify the production tenant and collection time.
 
-Open the completed run's **Summary** for the Maester-style report. Download `entra-apps-report-prod-<run number>`, extract it and open `report.html` for complete evidence. Large tenants keep the complete application list in the Summary; GitHub's 1 MiB summary limit can move some expanded details to the full artifact. Generated production reports are not committed to Git.
+Open the completed run's **Summary** for the application report. Download `entra-apps-report-<run number>`, extract it and open `report.html` for complete evidence. Large tenants keep the complete application list in the Summary; GitHub's 1 MiB summary limit can move some expanded details to the full artifact. Generated production reports are not committed to Git.
 
 For a focused first run, set `applicationIds` to one production application's client ID. With extended evidence enabled, registration, policy and log collection still covers the tenant; this filter limits the enterprise app findings only. After checking the result, change it to `[]` for all apps.
 

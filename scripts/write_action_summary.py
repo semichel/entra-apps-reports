@@ -1,19 +1,18 @@
-"""Render the pinned Maester Markdown layout on the GitHub Actions Summary page."""
+"""Render the application report layout on the GitHub Actions Summary page."""
 
 import argparse
 import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from publish_report import cell
-from render_maester_report import build_results
+from report_markdown import cell
+from render_html_report import build_results
 
 
 def status_badge(status):
-    names = {'Passed': 'pass', 'Failed': 'fail', 'Skipped': 'notrun', 'NotRun': 'notrun', 'Error': 'fail'}
-    if status == 'Investigate':
-        return '🔍 Investigate'
-    return f'<img src="https://maester.dev/img/test-result/pill-{names[status]}.png" height="25" alt="{status}"/>'
+    icons = {'Passed': '✅', 'Failed': '❌', 'Investigate': '🔍',
+             'Skipped': '⏭️', 'NotRun': '❔', 'Error': '⚠️'}
+    return icons[status] + ' ' + status
 
 
 def render(report, artifact_url):
@@ -34,9 +33,9 @@ def render(report, artifact_url):
                        f'**Category:** {cell(test["Block"])}  \n**Tags:** {cell(", ".join(test["Tag"]))}\n\n'
                        f'#### Application evidence\n\n{content}\n\n'
                        'Full raw configuration is available in the HTML report artifact.\n\n</details>\n')
-    template = (Path(__file__).parent / 'vendor/maester-2.2.0/ReportTemplate.md').read_text(encoding='utf-8')
+    template = (Path(__file__).parent / 'templates/summary.md').read_text(encoding='utf-8')
     values = {'TenantName': cell(results['TenantName']), 'TestDate': cell(results['ExecutedAt']) + ' (UTC)',
-              'ModuleVersion': '2.2.0', 'TestSummary': '\n'.join(summary)}
+              'TestSummary': '\n'.join(summary)}
     values.update({key: str(results[key]) for key in ['TotalCount', 'PassedCount', 'FailedCount',
                   'InvestigateCount', 'SkippedCount', 'NotRunCount']})
     for key, value in values.items():
@@ -51,8 +50,6 @@ def render(report, artifact_url):
                     f'Expiry calculations UTC: {datetime.now(timezone.utc).isoformat()}.\n\n'
                     f'[Download the interactive HTML report and JSON/CSV evidence]({artifact_url}). '
                     'Extract the artifact and open report.html.\n\n')
-    if report.get('mode') == 'SNAPSHOT':
-        introduction += '**SNAPSHOT:** This run renders previously collected real tenant data; no fresh Entra query was made.\n\n'
     template = template.replace('## Application summary', introduction + '## Application summary', 1)
     budget = 1024 * 1024 - len(template.encode('utf-8')) - 2048
     included = []
