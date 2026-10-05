@@ -11,6 +11,10 @@ from render_report import expiry, owner_rows, permission_rows, requested_rows, u
 
 
 def section(title, content):
+    return f'### {cell(title)}\n\n{content}\n'
+
+
+def container(title, content):
     return f'<details><summary><strong>{cell(title)}</strong></summary>\n\n{content}\n\n</details>\n'
 
 
@@ -34,13 +38,13 @@ def render(report, artifact_url):
              "Catalog entries include platform/resource applications; confirm SSO policy applicability before remediation. Manual sign-in, token/assertion validation, TLS, approvals and business documentation remain required.\n"]
     if mode == "SNAPSHOT":
         parts.append("**This run renders existing tenant data; it does not query Entra again. Choose `lab` for a fresh collection after configuring the runner identity.**\n")
-    parts.append(f"Expiry calculations as of UTC {utc_date(now.isoformat())}. Expand an application, then expand the information you need.\n")
+    parts.append(f"Expiry calculations as of UTC {utc_date(now.isoformat())}. Expand an application to see all its information.\n")
     counts = Counter((finding["rule"], finding["status"]) for app in apps for finding in app["findings"])
-    parts.append(section('Policy observation totals', records(["Check", "Status", "Count"],
+    parts.append(container('Policy observation totals', records(["Check", "Status", "Count"],
                    [(rule, status, count) for (rule, status), count in sorted(counts.items())])))
     tenant = report.get("tenantEvidence") or {}
     if tenant:
-        parts.append(section('Tenant evidence coverage', records(["Evidence", "Availability", "Records"],
+        parts.append(container('Tenant evidence coverage', records(["Evidence", "Availability", "Records"],
             [(key, value.get("status"), len(collection(value.get("items")))) for key, value in tenant.items() if isinstance(value, dict)])))
     parts.append("## Application findings\n")
     for app in apps:
@@ -75,7 +79,7 @@ def render(report, artifact_url):
             [(utc_date(item.get('createdDateTime')), item.get('userPrincipalName') or item.get('userId'), (item.get('status') or {}).get('errorCode'), item.get('conditionalAccessStatus')) for item in collection(signins.get('items'))],
             'No sign-ins in the collected window.' if signins.get('status') == 'AVAILABLE' else 'Sign-in evidence unavailable.')))
         block.append('\nFull raw configuration is in the HTML artifact.\n')
-        parts.append(section(f"{app.get('displayName')} — {app.get('status')}", '\n'.join(block)))
+        parts.append(container(f"{app.get('displayName')} — {app.get('status')}", '\n'.join(block)))
     text = "\n".join(parts)
     if len(text.encode("utf-8")) >= 1024 * 1024:
         raise ValueError("Summary exceeds GitHub's 1 MiB per-step limit; split it before publishing")

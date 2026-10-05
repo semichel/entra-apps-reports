@@ -71,7 +71,7 @@ def panel(title, content, anchor=None):
 
 
 def subsection(title, content):
-    return f'<details class="subsection"><summary>{esc(title)}</summary>{content}</details>'
+    return f'<section class="subsection"><h3>{esc(title)}</h3>{content}</section>'
 
 
 def owner_rows(app):
@@ -178,8 +178,8 @@ def app_html(app, index, now, by_id, by_app_id):
         sections += subsection('App registration configuration', table(['Property', 'Value'], [
             ('Registration ID', registration.get('id')), ('Sign-in audience', registration.get('signInAudience')),
             ('Publisher domain', registration.get('publisherDomain')), ('Created UTC', utc_date(registration.get('createdDateTime')))
-        ]) + '<details class="raw"><summary>Complete registration settings</summary><pre>' + esc(json.dumps(registration, indent=2, ensure_ascii=False)) + '</pre></details>')
-    raw = '<details class="raw"><summary>Raw configuration evidence</summary><pre>' + esc(json.dumps(app, indent=2, ensure_ascii=False)) + '</pre></details>'
+        ]))
+    raw = '<section class="raw"><h3>Raw configuration evidence</h3><pre>' + esc(json.dumps(app, indent=2, ensure_ascii=False)) + '</pre></section>'
     expired = sum(state == "Expired" for state in states)
     alert = f'<span class="pill">{expired} expired credential(s)</span>' if expired else ''
     return f'<details class="app" id="app-{index}" {attributes}><summary><strong>{esc(name)}</strong><span class="pill">{esc(app.get("protocol"))}</span><span class="pill">{esc(app.get("status"))} policy observations</span>{alert}</summary>{sections}{raw}</details>'
@@ -215,7 +215,7 @@ def render(report, now=None):
               '<p class="muted">Catalog entries include platform/resource applications. Confirm SSO policy applicability before remediation. Snapshot data does not confirm that credentials or grants are still configured today.</p></header>',
               '<div class="cards">' + ''.join(f'<div class="card"><strong>{count}</strong>{esc(title)}</div>' for title, count in cards) + '</div>']
     controls = '<div class="controls"><input id="search" placeholder="Search application, client ID, owner or protocol" aria-label="Search applications"><select id="filter" aria-label="Filter applications"><option value="all">All applications</option><option value="local">Local registrations</option><option value="expired">Expired credentials</option><option value="expiring">Expires within 90 days</option><option value="owner-gap">Enterprise owner gaps</option></select></div><p id="shown" class="muted"></p>'
-    output.append('<section id="applications"><h2>Applications</h2><p>Expand an application, then expand its owners, certificates, permissions or other details.</p>' + controls)
+    output.append('<section id="applications"><h2>Applications</h2><p>Expand an application to see all its owners, certificates, permissions and other details.</p>' + controls)
     output.extend(app_html(app, index, now, by_id, by_app_id) for index, app in enumerate(apps))
     output.append('</section>')
     tenant = report.get("tenantEvidence") or {}
@@ -223,7 +223,7 @@ def render(report, now=None):
     coverage_html = table(["Evidence", "Availability", "Records", "Reason"], coverage, "Extended tenant evidence was not collected in this report.")
     policies = (tenant.get("conditionalAccessPolicies") or {}).get("items")
     coverage_html += subsection('Conditional Access policies', table(["Policy", "State", "Policy ID"], [(value.get("displayName"), value.get("state"), value.get("id")) for value in items(policies)]))
-    coverage_html += '<details class="raw"><summary>Complete tenant policy, consent and log evidence</summary><pre>' + esc(json.dumps(tenant, indent=2, ensure_ascii=False)) + '</pre></details>'
+    coverage_html += '<section class="raw"><h3>Complete tenant policy, consent and log evidence</h3><pre>' + esc(json.dumps(tenant, indent=2, ensure_ascii=False)) + '</pre></section>'
     output.append(panel("Evidence coverage and tenant policies", '<p>UNAVAILABLE means a query could not be completed, never a passing control. Recent logs cover the recorded lookback only. Conditional Access applicability and effective enforcement require separate review.</p>' + coverage_html, "coverage"))
     registration_blocks = []
     for value in registrations:
@@ -234,7 +234,7 @@ def render(report, now=None):
                       'credentials': value.get('credentials'), 'status': 'Registration only', 'findings': []}
         registration_blocks.append(app_html(standalone, len(apps) + len(registration_blocks), now, by_id, by_app_id).replace('class="app"', 'class="registration-app"'))
     if registration_blocks:
-        output.append(panel('Registrations without an enterprise application', ''.join(registration_blocks)))
+        output.append('<section><h2>Registrations without an enterprise application</h2>' + ''.join(registration_blocks) + '</section>')
     javascript = '''function applyFilters(){const q=document.getElementById('search').value.toLowerCase();const f=document.getElementById('filter').value;let count=0;document.querySelectorAll('.app').forEach(el=>{const visible=el.dataset.search.includes(q)&&(f==='all'||el.getAttribute('data-'+f)==='true');el.hidden=!visible;if(visible)count++;});document.getElementById('shown').textContent=count+' applications shown';}document.getElementById('search').addEventListener('input',applyFilters);document.getElementById('filter').addEventListener('change',applyFilters);applyFilters();'''
     output.append(f'<script>{javascript}</script></main></body></html>')
     return "".join(output)
