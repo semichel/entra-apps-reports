@@ -1,6 +1,7 @@
 """Lifecycle, permission-consent and escaped HTML checks for the actual report."""
 
 import sys
+import json
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -8,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from render_report import expiry, permission_rows, requested_rows, render, utc_date
 from render_maester_report import build_results
+from write_action_summary import render as render_summary
 
 
 class ReportTests(unittest.TestCase):
@@ -71,6 +73,21 @@ class ReportTests(unittest.TestCase):
         self.assertEqual((result["FailedCount"], result["PassedCount"], result["InvestigateCount"]), (1, 1, 1))
         self.assertEqual([entry["Title"] for entry in result["Tests"]], ["One", "Two", "Tenant evidence and report scope"])
         self.assertIn("Sign-in evidence unavailable", result["Tests"][1]["ResultDetail"]["TestResult"])
+
+    def test_actions_summary_uses_maester_template_and_retains_all_app_details(self):
+        path = Path(__file__).resolve().parents[1] / 'published/lab/report.json'
+        report = json.loads(path.read_text(encoding='utf-8-sig'))
+        report['mode'] = 'SNAPSHOT'
+        summary = render_summary(report, 'https://github.com/semichel/entra-apps-reports/actions/runs/1/artifacts/1')
+        self.assertLess(len(summary.encode('utf-8')), 1024 * 1024)
+        self.assertEqual(summary.count('<details>'), len(report['applications']) + 1)
+        self.assertIn('pill-fail.png', summary)
+        self.assertIn('## Application summary', summary)
+        self.assertIn('## Application details', summary)
+        self.assertIn('2026-10-01T11:45:59Z', summary)
+        self.assertIn('Granted API permissions', summary)
+        self.assertIn('SNAPSHOT:', summary)
+        self.assertNotIn('%TestSummary%', summary)
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ Private repository: [semichel/entra-apps-reports](https://github.com/semichel/en
 
 **[View the live Entra application report directly on GitHub](published/lab/README.md)** — browse the application index, click an application, and read its findings, owners, assignments, credentials and full configuration evidence. This is live tenant data; Actions demo artifacts contain synthetic data.
 
-**Per-run report:** open [Entra application report in Actions](https://github.com/semichel/entra-apps-reports/actions/workflows/report.yml). Each successful run shows expandable application findings directly on its Summary page and provides an interactive HTML artifact, following the Maester reporting pattern.
+**Per-run report:** open [Entra application report in Actions](https://github.com/semichel/entra-apps-reports/actions/workflows/report.yml). Each successful run uses Maester's Markdown summary layout: logo, totals table, application list with status badges, and expandable application details directly on the Summary page. It also provides the interactive HTML artifact.
 
 The [downloadable report bundle](https://github.com/semichel/entra-apps-reports/releases/tag/lab-report-2026-10-05) is also available.
 
