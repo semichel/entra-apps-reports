@@ -35,5 +35,3 @@ def evidence(value):
         length += 1
     fence = "`" * length
     return f"\n{fence}json\n{text}\n{fence}\n"
-
-
