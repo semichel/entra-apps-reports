@@ -62,7 +62,7 @@ Each successful run writes:
 | `assignments.csv` | Assigned users/groups and role identifiers |
 | `credentials.csv` | Certificate and secret dates, lifetime and expiry findings; no credential values |
 
-Both the Actions summary and HTML report group information into collapsed application containers. Expand an app once to see its owners, certificates and secrets, assignments, granted and requested API permissions, federation, sign-ins and policy findings. Credential sections show expired / 30 / 60 / 90-day states. The HTML report supports search by application or owner and filters for expiring credentials and ownership gaps. Tenant evidence has its own container. All sections inside a container are visible without further expansion.
+The HTML report follows the local Maester report layout: sidebar, overview cards, charts, searchable application table, dark mode and a detail panel with Previous/Next navigation. Click an app once to see all its owners, certificates and secrets, assignments, granted and requested API permissions, federation, sign-ins and policy findings. Credential sections show expired / 30 / 60 / 90-day states. Search by application or owner and filter for expiring credentials and ownership gaps. The HTML includes its styles and scripts, so it opens offline after extracting the artifact. The Actions summary keeps GitHub-native expandable app sections with all information visible after one expansion.
 
 By default these are in `reports/latest/`. Use `-OutputDirectory` to select another folder. Runtime output is ignored by Git; the readable live report and evidence are committed under `published/lab/`. Logs use `$env:IACPORTAL_LOG` when set, otherwise a unique temporary log.
 

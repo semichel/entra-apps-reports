@@ -6,6 +6,7 @@ import json
 import math
 from datetime import datetime, timezone
 from pathlib import Path
+from collections import Counter
 
 
 def items(value):
@@ -182,7 +183,7 @@ def app_html(app, index, now, by_id, by_app_id):
     raw = '<section class="raw"><h3>Raw configuration evidence</h3><pre>' + esc(json.dumps(app, indent=2, ensure_ascii=False)) + '</pre></section>'
     expired = sum(state == "Expired" for state in states)
     alert = f'<span class="pill">{expired} expired credential(s)</span>' if expired else ''
-    return f'<details class="app" id="app-{index}" {attributes}><summary><strong>{esc(name)}</strong><span class="pill">{esc(app.get("protocol"))}</span><span class="pill">{esc(app.get("status"))} policy observations</span>{alert}</summary>{sections}{raw}</details>'
+    return f'<dialog class="app" id="app-{index}" aria-labelledby="title-{index}" {attributes}><div class="dialog-toolbar"><button type="button" data-previous>← Previous</button><span class="dialog-position"></span><button type="button" data-next>Next →</button><button type="button" class="close-dialog" aria-label="Close application details">✕</button></div><div class="dialog-body"><h2 id="title-{index}">{esc(name)}</h2><p class="muted">Application report details</p><div class="badges"><span class="pill">{esc(app.get("protocol"))}</span><span class="pill">{esc(app.get("status"))} policy observations</span>{alert}</div>{sections}{raw}</div></dialog>'
 
 
 def render(report, now=None):
@@ -204,40 +205,62 @@ def render(report, now=None):
     missing_owners = sum(len(items(app.get("owners"))) < 2 for app in apps)
     mode = report.get("mode")
     mode_label = {"LIVE": "Fresh tenant collection", "SNAPSHOT": "Previously collected tenant snapshot", "DEMO": "Synthetic demo"}.get(mode, mode)
-    cards = [("Applications", len(apps)), ("Local registrations", len(registrations)), ("Credentials expired", expired),
-             ("Credentials expire ≤90 days", soon), ("Enterprise apps with <2 owners", missing_owners), ("Granted API permissions", len(grants))]
-    css = '''body{margin:0;background:#f3f6fa;color:#18324d;font:15px system-ui}main{max-width:1500px;margin:auto;padding:28px}header,.panel,.app{background:white;border:1px solid #dce4ee;border-radius:12px;padding:22px;margin:18px 0}h1{margin:0 0 12px}h2{margin-top:0}h3{margin-top:28px}nav{display:flex;gap:18px;flex-wrap:wrap}a{color:#1764a4}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.card{background:#eaf1f8;border-radius:10px;padding:16px}.card strong{display:block;font-size:30px}.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:10px;border:1px solid #dce4ee;text-align:left;vertical-align:top;overflow-wrap:anywhere}th{background:#edf3f9;position:sticky;top:0}tbody tr:nth-child(even){background:#fafbfd}.empty{color:#617488}.warning{background:#fff3da;padding:12px;border-radius:8px}summary{cursor:pointer;padding:10px 0}.app>summary{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.pill{padding:4px 9px;background:#edf3f9;border-radius:20px;font-size:12px}.controls{display:flex;gap:12px;margin:16px 0}input,select{font:inherit;padding:12px;border:1px solid #b8c9dc;border-radius:6px}input{flex:1}.index-scroll{max-height:540px;overflow:auto}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f6fa;padding:16px;font:12px ui-monospace;max-height:550px;overflow:auto}.raw{margin-top:20px}.muted{color:#617488}[hidden]{display:none!important}@media(max-width:700px){main{padding:12px}.controls{flex-direction:column}}@media print{.controls,nav{display:none}.table-wrap{overflow:visible}}'''
-    css += '.subsection{border:1px solid #dce4ee;border-radius:8px;padding:8px 14px;margin:10px 0}.subsection>summary{font-weight:600}.app>summary::before{content:"▶"}.app[open]>summary::before{content:"▼"}.registration-app{margin:12px 0;padding:12px;border:1px solid #dce4ee;border-radius:8px}'
-    output = [f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Entra application lifecycle and permissions report</title><style>{css}</style></head><body><main>',
-              '<header id="overview"><h1>Entra application lifecycle and permissions</h1>',
-              f'<p><strong>MichelAB</strong> · {esc(report.get("tenantId"))}<br><strong>{esc(mode_label)}</strong> · Inventory collected UTC: {esc(utc_date(report.get("generatedAtUtc")))}<br>Expiry calculations as of UTC: {esc(utc_date(now.isoformat()))}</p>',
-              '<nav><a href="#applications">Applications</a><a href="#coverage">Tenant evidence</a></nav>',
-              '<p class="muted">Catalog entries include platform/resource applications. Confirm SSO policy applicability before remediation. Snapshot data does not confirm that credentials or grants are still configured today.</p></header>',
-              '<div class="cards">' + ''.join(f'<div class="card"><strong>{count}</strong>{esc(title)}</div>' for title, count in cards) + '</div>']
-    controls = '<div class="controls"><input id="search" placeholder="Search application, client ID, owner or protocol" aria-label="Search applications"><select id="filter" aria-label="Filter applications"><option value="all">All applications</option><option value="local">Local registrations</option><option value="expired">Expired credentials</option><option value="expiring">Expires within 90 days</option><option value="owner-gap">Enterprise owner gaps</option></select></div><p id="shown" class="muted"></p>'
-    output.append('<section id="applications"><h2>Applications</h2><p>Expand an application to see all its owners, certificates, permissions and other details.</p>' + controls)
+    css = Path(__file__).with_name('report.css').read_text(encoding='utf-8')
+    javascript = Path(__file__).with_name('report.js').read_text(encoding='utf-8')
+    observation_counts = Counter(finding.get('status') for app in apps for finding in items(app.get('findings')))
+    colors = {'PASS': '#10b981', 'FAIL': '#f43f5e', 'WARN': '#f97316', 'UNKNOWN': '#3b82f6', 'MANUAL': '#94a3b8', 'NOT_APPLICABLE': '#cbd5e1'}
+    labels = {'PASS': 'Passed', 'FAIL': 'Failed', 'WARN': 'Warning', 'UNKNOWN': 'Unknown', 'MANUAL': 'Manual review', 'NOT_APPLICABLE': 'Not applicable'}
+    total_observations = sum(observation_counts.values())
+    stops, legend, cursor = [], [], 0
+    for status, count in observation_counts.items():
+        percent = count / max(1, total_observations) * 100
+        color = colors.get(status, '#94a3b8')
+        stops.append(f'{color} {cursor:.3f}% {cursor + percent:.3f}%')
+        cursor += percent
+        legend.append(f'<div><i class="dot" style="background:{color}"></i>{esc(labels.get(status, status))} {count}</div>')
+    donut = '<div class="donut-layout"><div class="donut" style="background:conic-gradient(' + (','.join(stops) or '#cbd5e1 0% 100%') + ')"><span>' + str(total_observations) + '</span></div><div class="legend">' + ''.join(legend) + '</div></div>'
+    def bars(values):
+        maximum = max((count for _, count, _ in values), default=1) or 1
+        return '<div class="bars">' + ''.join(f'<div><div class="bar-label"><span>{esc(label)}</span><span>{count}</span></div><div class="bar-track"><span style="background:{color};width:{count / maximum * 100:.2f}%"></span></div></div>' for label, count, color in values) + '</div>'
+    app_failures = sum(app.get('status') == 'FAIL' for app in apps)
+    cards = [('Total applications', len(apps), '#3b82f6', len(apps)), ('Failed observations', app_failures, '#f43f5e', len(apps)), ('Expired credentials', expired, '#f97316', len(credentials)), ('Granted permissions', len(grants), '#10b981', len(grants))]
+    output = [f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Entra apps report</title><style>{css}</style></head><body>',
+        '<aside class="sidebar"><div class="brand"><span class="brand-icon">◈</span><div><strong>Entra apps report</strong><small>MichelAB</small></div></div><nav><a class="active" href="#overview">⌂ &nbsp; Home</a><a href="#applications">▦ &nbsp; Applications</a><a href="#coverage">◉ &nbsp; Tenant evidence</a><a href="report.json" download>▤ &nbsp; JSON evidence</a><a href="findings.csv" download>▦ &nbsp; Excel / CSV</a><button id="print-report" type="button">▧ &nbsp; Print</button></nav><footer>MichelAB lab tenant<br>Read-only application inventory</footer></aside>',
+        '<div class="workspace"><div class="topbar"><button id="sidebar-toggle" type="button" aria-label="Toggle sidebar">◫</button><span>Home / Application overview</span><button id="theme-toggle" type="button" class="theme" aria-label="Switch to dark mode">☼</button></div><main id="overview"><h1>Application Overview</h1>',
+        f'<p class="meta">MichelAB · {esc(utc_date(report.get("generatedAtUtc")))} · {esc(mode_label)}</p>',
+        '<div class="cards">' + ''.join(f'<div class="card"><div class="label">{esc(label)}<span style="color:{color}">●</span></div><strong>{count}</strong><div class="meter"><span style="background:{color};width:{count / max(1, denominator) * 100:.2f}%"></span></div></div>' for label, count, color, denominator in cards) + '</div>',
+        '<div class="charts"><section class="chart"><h3>Policy observations</h3>' + donut + '</section><section class="chart"><h3>Certificate &amp; secret validity</h3>' + bars([('Expired', expired, '#f43f5e'), ('Expires ≤90 days', soon, '#f97316'), ('Valid beyond 90 days', sum(expiry(value, now)[0] == 'Valid beyond 90 days' for _, value in credentials), '#10b981'), ('Unknown / not yet valid', sum(expiry(value, now)[0] in {'Unknown expiry', 'Not yet valid'} for _, value in credentials), '#94a3b8')]) + '</section><section class="chart"><h3>Application coverage</h3>' + bars([('Local registrations', len(registrations), '#3b82f6'), ('Enterprise owner gaps (<2)', missing_owners, '#f97316'), ('With recorded API grants', sum(bool(permission_rows(app, by_id)) for app in apps), '#10b981')]) + '</section></div>',
+        f'<p class="notice">Tenant: {esc(report.get("tenantId"))}. Expiry calculations as of UTC {esc(utc_date(now.isoformat()))}. Failed observations are configuration findings, not a complete compliance verdict. Platform/resource apps need an applicability review. Snapshot data reflects the recorded collection time.</p>',
+        '<section id="applications" class="results"><h2>Applications</h2><div class="controls"><input id="search" placeholder="Search by application, client ID or owner…" aria-label="Search applications"><select id="status-filter" aria-label="Filter by observation status"><option value="all">All observation statuses</option>' + ''.join(f'<option value="{esc(value)}">{esc(value)}</option>' for value in sorted({app.get('status') or 'UNKNOWN' for app in apps})) + '</select><select id="filter" aria-label="Filter applications"><option value="all">All applications</option><option value="local">Local registrations</option><option value="expired">Expired credentials</option><option value="expiring">Expires within 90 days</option><option value="owner-gap">Enterprise owner gaps</option></select></div><p id="shown" class="muted"></p><div class="table-wrap"><table><thead><tr><th>Application</th><th>SSO hint</th><th>Owners</th><th>Credential expiry</th><th>API grants</th><th>Observations</th></tr></thead><tbody id="application-rows">']
+    for index, app in enumerate(apps):
+        states = [expiry(value, now)[0] for value in items(app.get('credentials'))]
+        search = ' '.join(str(value or '') for value in [app.get('displayName'), app.get('appId'), app.get('protocol'), owner_names(app)]).lower()
+        attributes = f'data-target="app-{index}" data-search="{esc(search)}" data-status="{esc(app.get("status") or "UNKNOWN")}" data-local="{str(bool(app.get("registration"))).lower()}" data-expired="{str("Expired" in states).lower()}" data-expiring="{str(any(value.startswith("Expires within") for value in states)).lower()}" data-owner-gap="{str(len(items(app.get("owners"))) < 2).lower()}"'
+        next_end = min((date(value.get('endDateTime')) for value in items(app.get('credentials')) if date(value.get('endDateTime'))), default=None)
+        credential_label = 'Expired' if 'Expired' in states else 'Expiring' if any(value.startswith('Expires within') for value in states) else 'Recorded' if states else 'No local credentials'
+        cells = [f'<button class="app-link" type="button">{esc(app.get("displayName"))}</button><small class="subtext">{esc(app.get("appId"))}</small>', esc(app.get('protocol')), esc(owner_names(app)), f'<span class="pill {credential_label}">{credential_label}</span><small class="subtext">{esc(utc_date(next_end.isoformat()) if next_end else "")}</small>', str(len(permission_rows(app, by_id))), f'<span class="pill {esc(app.get("status"))}">{esc(app.get("status"))}</span>']
+        output.append(f'<tr {attributes}>' + ''.join(f'<td>{value}</td>' for value in cells) + '</tr>')
+    output.append('</tbody></table></div></section>')
     output.extend(app_html(app, index, now, by_id, by_app_id) for index, app in enumerate(apps))
-    output.append('</section>')
-    tenant = report.get("tenantEvidence") or {}
-    coverage = [(key, value.get("status"), len(items(value.get("items"))), value.get("reason")) for key, value in tenant.items() if isinstance(value, dict)]
-    coverage_html = table(["Evidence", "Availability", "Records", "Reason"], coverage, "Extended tenant evidence was not collected in this report.")
-    policies = (tenant.get("conditionalAccessPolicies") or {}).get("items")
-    coverage_html += subsection('Conditional Access policies', table(["Policy", "State", "Policy ID"], [(value.get("displayName"), value.get("state"), value.get("id")) for value in items(policies)]))
+    tenant = report.get('tenantEvidence') or {}
+    coverage = [(key, value.get('status'), len(items(value.get('items'))), value.get('reason')) for key, value in tenant.items() if isinstance(value, dict)]
+    coverage_html = table(['Evidence', 'Availability', 'Records', 'Reason'], coverage, 'Extended tenant evidence was not collected.')
+    policies = (tenant.get('conditionalAccessPolicies') or {}).get('items')
+    coverage_html += subsection('Conditional Access policies', table(['Policy', 'State', 'Policy ID'], [(value.get('displayName'), value.get('state'), value.get('id')) for value in items(policies)]))
     coverage_html += '<section class="raw"><h3>Complete tenant policy, consent and log evidence</h3><pre>' + esc(json.dumps(tenant, indent=2, ensure_ascii=False)) + '</pre></section>'
-    output.append(panel("Evidence coverage and tenant policies", '<p>UNAVAILABLE means a query could not be completed, never a passing control. Recent logs cover the recorded lookback only. Conditional Access applicability and effective enforcement require separate review.</p>' + coverage_html, "coverage"))
-    registration_blocks = []
+    output.append(panel('Evidence coverage and tenant policies', '<p>UNAVAILABLE means a query could not be completed. Logs cover the collected window only.</p>' + coverage_html, 'coverage'))
+    standalone_links = []
     for value in registrations:
-        registration_app = next((app for app in apps if app.get('appId') == value.get('appId')), None)
-        if registration_app is not None:
+        if value.get('appId') in matched_ids:
             continue
-        standalone = {'displayName': value.get('displayName'), 'appId': value.get('appId'), 'registration': value,
-                      'credentials': value.get('credentials'), 'status': 'Registration only', 'findings': []}
-        registration_blocks.append(app_html(standalone, len(apps) + len(registration_blocks), now, by_id, by_app_id).replace('class="app"', 'class="registration-app"'))
-    if registration_blocks:
-        output.append('<section><h2>Registrations without an enterprise application</h2>' + ''.join(registration_blocks) + '</section>')
-    javascript = '''function applyFilters(){const q=document.getElementById('search').value.toLowerCase();const f=document.getElementById('filter').value;let count=0;document.querySelectorAll('.app').forEach(el=>{const visible=el.dataset.search.includes(q)&&(f==='all'||el.getAttribute('data-'+f)==='true');el.hidden=!visible;if(visible)count++;});document.getElementById('shown').textContent=count+' applications shown';}document.getElementById('search').addEventListener('input',applyFilters);document.getElementById('filter').addEventListener('change',applyFilters);applyFilters();'''
-    output.append(f'<script>{javascript}</script></main></body></html>')
-    return "".join(output)
+        index = len(apps) + len(standalone_links)
+        standalone = {'displayName': value.get('displayName'), 'appId': value.get('appId'), 'registration': value, 'credentials': value.get('credentials'), 'status': 'Registration only', 'findings': []}
+        standalone_links.append(f'<p><button class="app-link" data-open-app="app-{index}" type="button">{esc(value.get("displayName"))}</button></p>')
+        output.append(app_html(standalone, index, now, by_id, by_app_id))
+    if standalone_links:
+        output.append(panel('Registrations without an enterprise application', ''.join(standalone_links)))
+    output.append(f'</main></div><script>{javascript}</script></body></html>')
+    return ''.join(output)
 
 
 if __name__ == "__main__":
