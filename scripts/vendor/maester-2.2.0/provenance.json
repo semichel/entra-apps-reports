@@ -1,0 +1,12 @@
+{
+  "version": "2.2.0",
+  "upstream": "https://github.com/maester365/maester",
+  "source": "Installed Maester 2.2.0 assets/ReportTemplate.html",
+  "originalSha256": "a7b8dae3d5932c3096fa98709aaab9e9c1ebbfb83b5519e524b734ec751e3416",
+  "adaptedSha256": "8cc2763975f4e72d5e30b5881c0c4a30cd18b809b2327ea15b14fc308dc4c792",
+  "changes": [
+    "Remove upstream sample results",
+    "Change inventory labels",
+    "Collapse advanced configuration card using native React details element"
+  ]
+}

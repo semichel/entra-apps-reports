@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from render_report import expiry, permission_rows, requested_rows, render, utc_date
+from render_maester_report import build_results
 
 
 class ReportTests(unittest.TestCase):
@@ -60,6 +61,16 @@ class ReportTests(unittest.TestCase):
         self.assertIn("Application.Read.All", page)
         self.assertIn("Granted API permissions", page)
         self.assertIn("Requested API permissions and consent", page)
+
+    def test_native_entries_preserve_app_counts_and_unavailable_evidence(self):
+        apps = [{"appId": "one", "displayName": "One", "status": "FAIL"},
+                {"appId": "two", "displayName": "Two", "status": "PASS",
+                 "recentSignIns": {"status": "UNAVAILABLE", "items": []}}]
+        result = build_results({"applications": apps, "mode": "SNAPSHOT"}, self.now)
+        self.assertEqual(result["TotalCount"], 3)
+        self.assertEqual((result["FailedCount"], result["PassedCount"], result["InvestigateCount"]), (1, 1, 1))
+        self.assertEqual([entry["Title"] for entry in result["Tests"]], ["One", "Two", "Tenant evidence and report scope"])
+        self.assertIn("Sign-in evidence unavailable", result["Tests"][1]["ResultDetail"]["TestResult"])
 
 
 if __name__ == "__main__":

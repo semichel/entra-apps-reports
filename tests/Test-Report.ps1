@@ -80,7 +80,7 @@ $output = Join-Path $repo 'reports/test'
 $report = Get-Content -LiteralPath (Join-Path $output 'report.json') -Raw | ConvertFrom-Json -AsHashtable
 Assert-Report ($report['mode'] -eq 'DEMO' -and $report['applications'].Count -eq 2) 'Demo end-to-end report failed.'
 $html = Get-Content -LiteralPath (Join-Path $output 'report.html') -Raw
-Assert-Report ($html.Contains('&lt;test&gt;') -and -not $html.Contains('application <test>')) 'HTML app name must be escaped.'
+Assert-Report ($html.Contains('\u003ctest\u003e') -and -not $html.Contains('application <test>')) 'Inline report JSON must escape HTML delimiters.'
 Assert-Report ((Import-Csv -LiteralPath (Join-Path $output 'findings.csv')).Count -gt 0) 'CSV missing findings.'
 Write-Host 'All offline report checks passed.' -ForegroundColor Green
 
