@@ -4,7 +4,9 @@ Read-only enterprise application configuration reports based on the supplied SSO
 
 Private repository: [semichel/entra-apps-reports](https://github.com/semichel/entra-apps-reports).
 
-**Real lab report:** [download the 5 October 2026 report bundle](https://github.com/semichel/entra-apps-reports/releases/tag/lab-report-2026-10-05), extract it, and open `report.html`. This is live tenant data; the Actions demo artifacts contain synthetic data.
+**[View the live Entra application report directly on GitHub](published/lab/README.md)** — browse the application index, click an application, and read its findings, owners, assignments, credentials and full configuration evidence. This is live tenant data; Actions demo artifacts contain synthetic data.
+
+The [downloadable report bundle](https://github.com/semichel/entra-apps-reports/releases/tag/lab-report-2026-10-05) is also available.
 
 **Test tenant:** MichelAB / `Betancoraleman.onmicrosoft.com`  
 **Tenant ID:** `37dadda4-f2a4-47a8-8482-d40fe1a5aa48`
@@ -58,7 +60,7 @@ Each successful run writes:
 | `assignments.csv` | Assigned users/groups and role identifiers |
 | `credentials.csv` | Certificate and secret dates, lifetime and expiry findings; no credential values |
 
-By default these are in `reports/latest/`. Use `-OutputDirectory` to select another folder. Reports are ignored by Git. Logs use `$env:IACPORTAL_LOG` when set, otherwise a unique temporary log.
+By default these are in `reports/latest/`. Use `-OutputDirectory` to select another folder. Runtime output is ignored by Git; the readable live report and evidence are committed under `published/lab/`. Logs use `$env:IACPORTAL_LOG` when set, otherwise a unique temporary log.
 
 Findings use `PASS`, `FAIL`, `WARN`, `UNKNOWN`, `MANUAL`, or `NOT_APPLICABLE`. A rule-level PASS confirms only that particular observation; the overall application remains subject to manual review. Findings do not make the reporting job fail. Authentication, API, missing requested application and export failures do.
 
@@ -72,7 +74,7 @@ Extended evidence includes registration owners, federated identity credentials, 
 
 Run **Actions → Entra application report → Run workflow** and select `demo` or `lab`. The default is `demo`, which works without tenant credentials. Download the artifact from the completed run and open `report.html`.
 
-The workflow uses a GitHub-hosted Ubuntu runner and uploads HTML, JSON and CSV together with 14-day retention. No scheduled tenant runs are enabled. Validation runs on pushes and pull requests without tenant access.
+The workflow uses a GitHub-hosted Ubuntu runner and uploads HTML, JSON and CSV together with 14-day retention. A successful live run also updates the GitHub-readable report in `published/lab/` on `main`. Demo runs never overwrite live reports. No scheduled tenant runs are enabled. Validation runs on pushes and pull requests without tenant access.
 
 Live runner access requires an app registration with Microsoft Graph **Application.Read.All** application permission, administrator consent, and a GitHub federated identity credential. No Azure subscription is required. Those tenant resources are not created by the reporting script.
 

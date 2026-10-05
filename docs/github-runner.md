@@ -1,6 +1,6 @@
 # GitHub runner setup
 
-Use a private repository because the article and live application inventory contain internal administration information. Generated reports are workflow artifacts; they are not committed into the source branch.
+Use a private repository because the article and live application inventory contain internal administration information. Successful live reports are committed as readable Markdown and evidence in `published/lab/` on `main`, and also uploaded as downloadable workflow artifacts.
 
 Current repository: [semichel/entra-apps-reports](https://github.com/semichel/entra-apps-reports), private. The `lab` environment, its tenant-ID variable and the `main` deployment restriction are already configured. Demo execution and artifact upload have passed. Complete the application identity, consent, federated credential and client-ID variable steps below to enable live reporting.
 
@@ -38,6 +38,8 @@ The existing local certificate reader has no verified GitHub federation setup, s
 3. Wait for the job to complete.
 4. Download `entra-apps-report-<mode>-<run number>` under Artifacts.
 5. Extract it and open `report.html`. Use `report.json` for application evidence and `findings.csv` for filtering.
+
+For a successful **lab** run, the subsequent publication job also refreshes [the report index](../published/lab/README.md) in Git. Browse that index and click an application to view its report directly on GitHub. The publication job has repository contents-write permission; the collection job retains contents-read permission. Demo runs never publish over the live report. If branch protection prevents direct bot commits, the publication job will fail explicitly; configure the repository's publishing policy accordingly.
 
 A failing live API request stops the job without uploading a successful-looking incomplete report. Rule findings marked FAIL are report data and do not prevent artifact publication. Reports persist for 14 days and are visible to users with access to the repository/artifacts.
 
