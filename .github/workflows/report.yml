@@ -24,12 +24,11 @@ jobs:
           . ./scripts/Report.Deployment.ps1
           $config = Read-ReportDeployment ./config/production.json
           if ($env:GITHUB_REPOSITORY -ne (Get-Str $config 'githubRepository')) { throw 'Repository does not match production config.' }
-          if ($env:GITHUB_REF -ne ('refs/heads/' + (Get-Str $config 'githubBranch'))) { throw 'Select the configured trusted branch.' }
+          if ($env:GITHUB_REF -ne 'refs/heads/main') { throw 'Select the main branch.' }
           $private = gh api "repos/$env:GITHUB_REPOSITORY" --jq '.private'
           if ($LASTEXITCODE -ne 0 -or $private -ne 'true') { throw 'Production reports require a private repository.' }
           Add-Content $env:GITHUB_OUTPUT ("tenant_id=" + (Get-Str $config 'tenantId'))
           Add-Content $env:GITHUB_OUTPUT ("client_id=" + (Get-Str $config 'clientId'))
-          Add-Content $env:GITHUB_OUTPUT ("retention_days=" + (Get-Val $config 'artifactRetentionDays'))
       - name: Federated reader login
         uses: azure/login@v3
         with:
@@ -56,7 +55,6 @@ jobs:
         with:
           name: entra-apps-report-${{ github.run_number }}
           path: reports/latest/
-          retention-days: ${{ steps.settings.outputs.retention_days }}
           if-no-files-found: error
       - name: Publish report on the Actions Summary page
         shell: pwsh

@@ -2,7 +2,7 @@
 .SYNOPSIS
 Exports read-only production Entra application configuration and evidence.
 .DESCRIPTION
-Requires an enabled production configuration and an existing matching reader Graph context.
+Requires a valid production configuration and an existing matching reader Graph context.
 The GitHub workflow establishes that context using workload identity federation.
 .EXAMPLE
 ./scripts/Export-EntraAppsReport.ps1 -ConfigPath ./config/production.json
@@ -19,7 +19,6 @@ $ErrorActionPreference = 'Stop'
 $script:LogPath = if ($env:IACPORTAL_LOG) { $env:IACPORTAL_LOG } else { Join-Path ([IO.Path]::GetTempPath()) ('entra-apps-report-{0}.log' -f [guid]::NewGuid()) }
 $deployment = Read-ReportDeployment $ConfigPath
 $TenantId = Get-Str $deployment 'tenantId'
-$ApplicationIds = $deployment['applicationIds']
 Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
 $context = Get-MgContext
 Assert-ReportDeploymentContext $context $deployment
@@ -31,11 +30,6 @@ foreach ($registration in $registrations) {
     $registrationByApp[(Get-Str $registration 'appId')] = $registration
 }
 $principals = @(Invoke-MgGetAll 'https://graph.microsoft.com/v1.0/servicePrincipals?$filter=servicePrincipalType%20eq%20%27Application%27&$select=id,appId,displayName,accountEnabled,appRoleAssignmentRequired,preferredSingleSignOnMode,replyUrls,servicePrincipalNames,samlSingleSignOnSettings,loginUrl,logoutUrl,tokenEncryptionKeyId,preferredTokenSigningKeyThumbprint,passwordCredentials,keyCredentials')
-if ($ApplicationIds.Count) {
-    $principals = @($principals | Where-Object { (Get-Str $_ 'appId') -in $ApplicationIds })
-    $foundIds = @($principals | ForEach-Object { Get-Str $_ 'appId' })
-    if (@($ApplicationIds | Where-Object { $_ -notin $foundIds }).Count) { throw 'One or more configured application client IDs have no enterprise application in this tenant.' }
-}
 foreach ($principal in $principals) {
     $applications.Add((Get-LiveAppReport $principal $registrationByApp))
 }
@@ -44,9 +38,7 @@ $report = [ordered]@{
     tenantDisplayName = Get-Str $deployment 'tenantDisplayName'
     deploymentEnvironment = 'production'; mode = 'LIVE'; applications = $applications.ToArray()
 }
-if (Get-Val $deployment 'includeExtendedEvidence') {
-    . (Join-Path $PSScriptRoot 'Report.Evidence.ps1')
-    Add-ExtendedEvidence $report
-}
+. (Join-Path $PSScriptRoot 'Report.Evidence.ps1')
+Add-ExtendedEvidence $report
 Export-AppReport $report $OutputDirectory
 Write-ReportLog ("Report written to {0}; log: {1}" -f [IO.Path]::GetFullPath($OutputDirectory), $script:LogPath) Green

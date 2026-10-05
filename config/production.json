@@ -1,13 +1,6 @@
 {
-  "schemaVersion": "1.0",
-  "enabled": false,
-  "environment": "production",
   "tenantId": "",
   "tenantDisplayName": "",
   "clientId": "",
-  "githubRepository": "",
-  "githubBranch": "main",
-  "includeExtendedEvidence": true,
-  "applicationIds": [],
-  "artifactRetentionDays": 7
+  "githubRepository": ""
 }

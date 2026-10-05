@@ -12,9 +12,9 @@ Read-only production reports for Microsoft Entra applications.
 ./scripts/Validate-ProductionConfig.ps1
 ```
 
-4. Set `enabled` to `true`, commit the configuration to your trusted branch, and select **Actions → Entra application report → Run workflow**.
+4. Commit the configuration to `main`, and select **Actions → Entra application report → Run workflow**.
 
-Production is disabled in the supplied configuration. Authentication is configured by you; no tenant or client identifiers are prefilled.
+Blank or invalid tenant/client IDs prevent the workflow from authenticating. Authentication is configured by you; no tenant or client identifiers are prefilled.
 
 ## Report
 
@@ -32,6 +32,6 @@ The collector uses Graph GET requests. Credential values and private keys are no
 - `docs/`: manual deployment guide.
 - `.github/workflows/report.yml`: one manually triggered production workflow.
 
-PowerShell 7 and Python 3 are required. The workflow installs Microsoft Graph Authentication and authenticates using GitHub federation. Report retention defaults to seven days and is configurable. Generated output in `reports/` is ignored by Git.
+PowerShell 7 and Python 3 are required. The workflow installs Microsoft Graph Authentication and authenticates using GitHub federation. Artifact retention follows the GitHub repository setting. Generated output in `reports/` is ignored by Git.
 
 Required third-party notices are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt).
