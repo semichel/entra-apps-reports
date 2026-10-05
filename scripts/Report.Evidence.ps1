@@ -1,0 +1,112 @@
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+#= Optional evidence never masquerades as an empty successful query
+function Get-OptionalEvidence {
+    param([string]$Uri)
+    try {
+        return [ordered]@{ status = 'AVAILABLE'; items = @(Invoke-MgGetAll $Uri); reason = $null }
+    }
+    catch {
+        $status = Get-Val (Get-Val $_.Exception 'Response') 'StatusCode'
+        return [ordered]@{ status = 'UNAVAILABLE'; items = @(); reason = ("Graph query failed (HTTP {0}); access, licensing or endpoint support must be checked." -f $status) }
+    }
+}
+
+#= Supplement the core inventory using read-only Graph evidence
+function Add-ExtendedEvidence {
+    param([System.Collections.IDictionary]$Report, [int]$LogDays = 7)
+    Write-ReportLog 'Collecting app registration, consent, policy and recent log evidence.'
+    $registrations = @(Invoke-MgGetAll 'https://graph.microsoft.com/v1.0/applications?$select=id,appId,displayName,description,signInAudience,publisherDomain,createdDateTime,web,spa,publicClient,identifierUris,optionalClaims,groupMembershipClaims,api,appRoles,requiredResourceAccess,info,tags,passwordCredentials,keyCredentials')
+    $principals = @(Invoke-MgGetAll 'https://graph.microsoft.com/v1.0/servicePrincipals?$select=id,appId,displayName,appOwnerOrganizationId,publisherName,servicePrincipalType,appRoles,oauth2PermissionScopes,description,homepage,tags,info')
+    $principalIndex = @{}
+    foreach ($principal in $principals) {
+        $principalIndex[(Get-Str $principal 'id')] = $principal
+    }
+    $registrationIndex = @{}
+    foreach ($registration in $registrations) {
+        $registrationIndex[(Get-Str $registration 'appId')] = Get-RegistrationEvidence $registration
+    }
+    $Report['registrations'] = @($registrationIndex.Values)
+    $since = [DateTimeOffset]::UtcNow.AddDays(-$LogDays).ToString('yyyy-MM-ddTHH:mm:ssZ')
+    $Report['tenantEvidence'] = [ordered]@{
+        lookbackDays = $LogDays; sinceUtc = $since
+        conditionalAccessPolicies = Get-OptionalEvidence 'https://graph.microsoft.com/v1.0/identity/conditionalAccess/policies'
+        claimsMappingPolicies = Get-OptionalEvidence 'https://graph.microsoft.com/v1.0/policies/claimsMappingPolicies'
+        delegatedConsentGrants = Get-OptionalEvidence 'https://graph.microsoft.com/v1.0/oauth2PermissionGrants'
+        signIns = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/auditLogs/signIns?`$filter=createdDateTime%20ge%20{0}&`$select=id,createdDateTime,appId,appDisplayName,userId,userPrincipalName,status,conditionalAccessStatus" -f $since)
+        directoryAudits = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/auditLogs/directoryAudits?`$filter=activityDateTime%20ge%20{0}&`$select=id,activityDateTime,activityDisplayName,category,result,initiatedBy,targetResources" -f $since)
+    }
+    $index = 0
+    $Report['tenantEvidence']['directoryAudits']['items'] = @($Report['tenantEvidence']['directoryAudits']['items'] | ForEach-Object { Convert-AuditEntry $_ })
+    foreach ($app in @(Get-Val $Report 'applications')) {
+        Add-AppEvidence $app $principalIndex $registrationIndex (Get-Val $Report 'tenantEvidence')
+        $index++; if ($index % 25 -eq 0) { Write-ReportLog ("Extended application evidence: {0}/{1}" -f $index, @(Get-Val $Report 'applications').Count) }
+    }
+    $Report['schemaVersion'] = '2.0'
+    $Report['evidenceCollectedAtUtc'] = [DateTimeOffset]::UtcNow.ToString('o')
+}
+
+#= Registration evidence excludes credential values
+function Get-RegistrationEvidence {
+    param($Registration)
+    $id = Get-Str $Registration 'id'
+    $result = [ordered]@{}
+    foreach ($key in @('id','appId','displayName','description','signInAudience','publisherDomain','createdDateTime','web','spa','publicClient','identifierUris','optionalClaims','groupMembershipClaims','api','appRoles','requiredResourceAccess','info','tags')) {
+        $result[$key] = Get-Val $Registration $key
+    }
+    $result['owners'] = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/applications/{0}/owners?`$select=id,displayName" -f $id)
+    $result['credentials'] = @(Get-CredentialSummary $Registration 'AppRegistration')
+    $result['federatedIdentityCredentials'] = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/applications/{0}/federatedIdentityCredentials" -f $id)
+    return $result
+}
+
+#= Enrich an application with permissions and tenant-policy evidence
+function Add-AppEvidence {
+    param([System.Collections.IDictionary]$App, $PrincipalIndex, $RegistrationIndex, $TenantEvidence)
+    $id = Get-Str $App 'servicePrincipalId'
+    $appId = Get-Str $App 'appId'
+    $principal = Get-Val $PrincipalIndex $id
+    foreach ($key in @('appOwnerOrganizationId','publisherName','servicePrincipalType','appRoles','oauth2PermissionScopes','description','homepage','tags','info')) {
+        $App[$key] = Get-Val $principal $key
+    }
+    $App['registration'] = Get-Val $RegistrationIndex $appId
+    $App['applicationPermissionGrants'] = Get-ApplicationPermissionEvidence $id $PrincipalIndex
+    $App['delegatedConsentGrants'] = [ordered]@{ status = Get-Str (Get-Val $TenantEvidence 'delegatedConsentGrants') 'status'; items = @((Get-Val (Get-Val $TenantEvidence 'delegatedConsentGrants') 'items') | Where-Object { (Get-Str $_ 'clientId') -eq $id }) }
+    $App['recentSignIns'] = [ordered]@{ status = Get-Str (Get-Val $TenantEvidence 'signIns') 'status'; items = @((Get-Val (Get-Val $TenantEvidence 'signIns') 'items') | Where-Object { (Get-Str $_ 'appId') -eq $appId }) }
+    $App['scopeNote'] = 'Catalog observation; apply the supplied SSO requirements only after confirming this is an in-scope production SSO application. Platform/resource apps may legitimately differ.'
+}
+
+#= Resolve granted application permission names against resource roles
+function Get-ApplicationPermissionEvidence {
+    param([string]$PrincipalId, $PrincipalIndex)
+    $evidence = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/servicePrincipals/{0}/appRoleAssignments?`$select=id,appRoleId,resourceId,resourceDisplayName,principalId" -f $PrincipalId)
+    foreach ($grant in @(Get-Val $evidence 'items')) {
+        Set-PermissionName $grant $PrincipalIndex
+    }
+    return $evidence
+}
+
+#= Permission role name enrichment without additional Graph reads
+function Set-PermissionName {
+    param([System.Collections.IDictionary]$Grant, $PrincipalIndex)
+    $resource = Get-Val $PrincipalIndex (Get-Str $Grant 'resourceId')
+    $roleId = Get-Str $Grant 'appRoleId'
+    $role = @((Get-Val $resource 'appRoles') | Where-Object { (Get-Str $_ 'id') -eq $roleId }) | Select-Object -First 1
+    $Grant['permission'] = Get-Str $role 'value'
+    $Grant['permissionDisplayName'] = Get-Str $role 'displayName'
+}
+
+#= Audit evidence retains actors and targets, excluding changed property values
+function Convert-AuditEntry {
+    param($Entry)
+    $result = [ordered]@{}
+    foreach ($key in @('id','activityDateTime','activityDisplayName','category','result','initiatedBy')) {
+        $result[$key] = Get-Val $Entry $key
+    }
+    $result['targetResources'] = @((Get-Val $Entry 'targetResources') | ForEach-Object {
+        [ordered]@{ id = Get-Str $_ 'id'; type = Get-Str $_ 'type'; displayName = Get-Str $_ 'displayName' }
+    })
+    return $result
+}
+

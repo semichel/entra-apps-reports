@@ -16,6 +16,8 @@ param(
     [switch]$Demo,
     [switch]$UseDeviceCode,
     [switch]$UseExistingContext,
+    [switch]$UseAzureCli,
+    [switch]$IncludeExtendedEvidence,
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '../reports/latest')
 )
 Set-StrictMode -Version Latest
@@ -36,7 +38,14 @@ else {
     if (-not [guid]::TryParse($TenantId, [ref]$parsedTenant) -or $parsedTenant -eq [guid]::Empty) { throw 'Provide the confirmed MichelAB lab tenant GUID using -TenantId.' }
     if ($parsedTenant -ne [guid]'37dadda4-f2a4-47a8-8482-d40fe1a5aa48') { throw 'This project is restricted to the confirmed MichelAB lab tenant.' }
     Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
-    if (-not $UseExistingContext) {
+    if ($UseAzureCli) {
+        $cliTenant = az account show --query tenantId -o tsv
+        if ($LASTEXITCODE -ne 0 -or $cliTenant -ne $TenantId) { throw 'Azure CLI tenant must match MichelAB.' }
+        $graphToken = az account get-access-token --resource https://graph.microsoft.com --query accessToken -o tsv
+        if ($LASTEXITCODE -ne 0 -or -not $graphToken) { throw 'Azure CLI could not acquire a Graph token.' }
+        Connect-MgGraph -AccessToken (ConvertTo-SecureString $graphToken -AsPlainText -Force) -NoWelcome
+    }
+    elseif (-not $UseExistingContext) {
         Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
         if ($UseDeviceCode) { Connect-MgGraph -TenantId $TenantId -Scopes 'Application.Read.All' -UseDeviceCode -ContextScope Process -NoWelcome }
         else {
@@ -68,6 +77,10 @@ else {
 $report = [ordered]@{
     schemaVersion = '1.0'; tenantId = $TenantId; generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
     mode = $(if ($Demo) { 'DEMO' } else { 'LIVE' }); applications = $applications.ToArray()
+}
+if ($IncludeExtendedEvidence -and -not $Demo) {
+    . (Join-Path $PSScriptRoot 'Report.Evidence.ps1')
+    Add-ExtendedEvidence $report
 }
 Export-AppReport $report $OutputDirectory
 Write-ReportLog ("Report written to {0}; log: {1}" -f [IO.Path]::GetFullPath($OutputDirectory), $script:LogPath) Green

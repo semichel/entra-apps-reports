@@ -15,6 +15,16 @@ Confirmed by the user and independently matched to `C:\jobb\entra-access-iac\con
 
 Without `-UseDeviceCode`, the script attempts interactive login first, then falls back to device code. Interactive sessions use a process-scoped context. Use `-UseExistingContext` only after connecting Graph in the same PowerShell process.
 
+## Verified local Azure CLI access
+
+On 5 October 2026, the existing Azure CLI session was verified against the lab tenant and successfully collected the full live report. Reuse it with:
+
+```powershell
+./scripts/Export-EntraAppsReport.ps1 -UseAzureCli -IncludeExtendedEvidence -OutputDirectory ./reports/lab-latest
+```
+
+This reads through the existing authorized local identity. It does not export that identity's credential or configure GitHub authentication. Log/policy access was available in this session, despite the separately recorded premium-license limitation; availability must be checked on each run.
+
 ## Existing local reader
 
 The existing local file `C:\jobb\entra-access-iac-dev-support\export-reader-spn.local.json` identifies reader client ID `59c2e30b-643d-4aa1-949e-f5eb074de800` and a certificate in `Cert:\CurrentUser\My`. Its certificate expired **1 October 2026**. Do not copy the private key or local settings into this repository. A local certificate is not automatically available on a GitHub-hosted runner.

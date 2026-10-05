@@ -10,7 +10,7 @@ The original article is in `source-sso-guide.txt`. Its organizational rules are 
 | HTTPS redirects | Checks collected callback URLs; permits HTTP localhost/127.0.0.1/IPv6 loopback. Native-app schemes require contextual review |
 | Secret maximum lifetime 90 days | Checks start/end dates and expiry; exports metadata only |
 | Certificate maximum lifetime 365 days | Checks start/end dates and expiry; warns at 30 days or less; listed retired keys can produce findings needing review |
-| Prefer federation, then certificate | Manual: credential absence alone does not prove federation; upstream app credentials may not be visible |
+| Prefer federation, then certificate | Extended evidence lists local federated identity credentials. Preference and relying-party compatibility still need review; upstream credentials may not be visible |
 | SAML basic settings | Exports service principal identifiers, reply URLs, login/logout URLs and SAML settings for comparison with delivery form |
 | SAML certificate verification | Exports key dates and preferred signing thumbprint; manual confirmation of active key, request signature verification and relying-party behavior |
 | SAML encryption when required | Exports tokenEncryptionKeyId; requirement and active encryption remain manual checks |
@@ -19,7 +19,7 @@ The original article is in `source-sso-guide.txt`. Its organizational rules are 
 | Logout, token lifetimes, assertion validation | Manual tests in the application |
 | TLS policy and trusted server certificate | Manual app-side/network verification; Graph configuration cannot establish TLS support |
 | Assigned and unassigned user testing | Manual; presence of assignments does not prove enforcement by the application |
-| Conditional Access, sign-in/audit monitoring | Manual; no log/policy permissions requested in this initial implementation |
+| Conditional Access, sign-in/audit monitoring | Extended evidence reads policies and seven days of logs where authorized. Applicability, monitoring process and successful validation remain manual |
 | Business owner, support contact, approval and runbook | Manual document review |
 
 **No application receives an overall compliance PASS.** Even configurations with passing automated rules still require protocol, app-side and operational checks. Missing SSO hints do not prove absence of OIDC; many registrations use OAuth/OIDC without populating that service principal field.

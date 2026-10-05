@@ -173,18 +173,9 @@ function Export-AppReport {
     })
     if ($rows.Count) { $rows | Export-Csv -LiteralPath (Join-Path $OutputDirectory 'findings.csv') -NoTypeInformation -Encoding utf8 }
     else { Set-Content -LiteralPath (Join-Path $OutputDirectory 'findings.csv') -Value '"Application","AppId","ServicePrincipalId","Rule","Status","Evidence"' }
-    $html = [System.Text.StringBuilder]::new()
-    [void]$html.Append('<!doctype html><html lang="en"><meta charset="utf-8"><title>Entra Apps Report</title><style>body{font:16px system-ui;max-width:1200px;margin:40px auto;padding:0 20px;color:#17324d}table{border-collapse:collapse;width:100%;margin:20px 0}td,th{padding:10px;border:1px solid #ccd5df;text-align:left}th{background:#edf3f9}h2{margin-top:40px}.FAIL{color:#a51e26}.PASS{color:#147548}.WARN,.MANUAL,.UNKNOWN{color:#916100}</style><h1>Entra application configuration report</h1>')
-    [void]$html.Append(('<p>Tenant: {0} | Generated UTC: {1} | Mode: {2} | Applications: {3}</p><p>Configuration observations only. Manual checks remain before production approval. JSON contains owners, assignments and credential metadata.</p>' -f [System.Net.WebUtility]::HtmlEncode($Report.tenantId), $Report.generatedAtUtc, $Report.mode, @($Report.applications).Count))
-    foreach ($app in $Report.applications) {
-        [void]$html.Append(('<h2>{0}</h2><p>Client ID: {1} | Protocol hint: {2} | Status: {3}</p><table><tr><th>Check</th><th>Status</th><th>Evidence</th></tr>' -f [System.Net.WebUtility]::HtmlEncode($app.displayName), [System.Net.WebUtility]::HtmlEncode($app.appId), $app.protocol, $app.status))
-        foreach ($finding in $app.findings) {
-            [void]$html.Append(('<tr><td>{0}</td><td class="{1}">{1}</td><td>{2}</td></tr>' -f $finding.rule, $finding.status, [System.Net.WebUtility]::HtmlEncode($finding.evidence)))
-        }
-        [void]$html.Append('</table>')
-    }
-    [void]$html.Append('</html>')
-    $html.ToString() | Set-Content -LiteralPath (Join-Path $OutputDirectory 'report.html') -Encoding utf8
+    . (Join-Path $PSScriptRoot 'Report.Html.ps1')
+    New-FullReportHtml $Report | Set-Content -LiteralPath (Join-Path $OutputDirectory 'report.html') -Encoding utf8
+    Export-DetailCsv $Report $OutputDirectory
 }
 
 #= Load owners and assignments for one enterprise application

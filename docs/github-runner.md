@@ -25,6 +25,10 @@ An authorized **MichelAB** administrator performs the following one-time setup:
 
 No client secret, private key or Azure subscription ID is needed. The workflow explicitly permits subscriptionless login, obtains a token for Microsoft Graph, masks the token, and connects Graph in the runner process. Tenant checks also occur inside the reporting script.
 
+The workflow requests extended evidence. For complete consent, policy and log coverage, the dedicated identity may additionally need **Directory.Read.All**, **Policy.Read.All** and **AuditLog.Read.All**, with administrator consent and applicable tenant licensing. Grant only the read permissions corresponding to the required evidence. Missing optional access is recorded as UNAVAILABLE in the report; application inventory remains available with Application.Read.All.
+
+The complete live report has already been generated locally using the existing authorized Azure CLI session. Hosted live runs remain pending the dedicated identity above. Existing broad local administrator credentials are not copied into GitHub.
+
 The existing local certificate reader has no verified GitHub federation setup, so its client ID must not simply be assumed to work on the runner.
 
 ## Run

@@ -5,6 +5,7 @@ Runs offline report, pagination, tenant guard and credential policy checks.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../scripts/Report.Common.ps1')
+. (Join-Path $PSScriptRoot '../scripts/Report.Evidence.ps1')
 
 #= Test assertion
 function Assert-Report {
@@ -56,6 +57,13 @@ Assert-Report ($credential['status'] -eq 'FAIL') 'Secret lifetime above 90 days 
 $secret['endDateTime'] = $now.AddDays(-1).ToString('o')
 $credential = Convert-Credential $secret 'passwordCredentials' 'AppRegistration'
 Assert-Report ($credential['status'] -eq 'FAIL') 'Expired secret must fail.'
+$registrationEvidence = Get-RegistrationEvidence @{ id = 'registration-test'; passwordCredentials = @($secret) }
+Assert-Report (-not (($registrationEvidence | ConvertTo-Json -Depth 20).Contains('MUST-NOT-EXPORT'))) 'Extended registration export leaked a secret.'
+$grant = @{ resourceId = 'resource-test'; appRoleId = 'role-test' }
+Set-PermissionName $grant @{ 'resource-test' = @{ appRoles = @(@{ id = 'role-test'; value = 'Application.Read.All'; displayName = 'Read applications' }) } }
+Assert-Report ($grant['permission'] -eq 'Application.Read.All') 'Granted permission names must resolve.'
+$audit = Convert-AuditEntry @{id='audit-test'; targetResources=@(@{id='app-test'; modifiedProperties=@(@{newValue='MUST-NOT-EXPORT'})})}
+Assert-Report (-not (($audit | ConvertTo-Json -Depth 20).Contains('MUST-NOT-EXPORT'))) 'Audit changed property values must not be exported.'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Get-ChildItem -LiteralPath $repo -Recurse -Filter '*.ps1' | ForEach-Object {
     $parseTokens = $null

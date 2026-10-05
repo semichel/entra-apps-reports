@@ -55,11 +55,11 @@ jobs:
               if ($LASTEXITCODE -ne 0 -or -not $tokenText) { throw 'Graph access token acquisition failed.' }
               Write-Output "::add-mask::$tokenText"
               $secureToken = ConvertTo-SecureString $tokenText -AsPlainText -Force
-              Connect-MgGraph -AccessToken $secureToken -ContextScope Process -NoWelcome
+              Connect-MgGraph -AccessToken $secureToken -NoWelcome
               try {
                   $context = Get-MgContext
                   if ($context.ClientId -ne $env:LAB_CLIENT_ID) { throw 'Unexpected Graph client ID.' }
-                  ./scripts/Export-EntraAppsReport.ps1 -TenantId $env:LAB_TENANT_ID -UseExistingContext
+                  ./scripts/Export-EntraAppsReport.ps1 -TenantId $env:LAB_TENANT_ID -UseExistingContext -IncludeExtendedEvidence
               } finally {
                   Disconnect-MgGraph | Out-Null
               }
@@ -76,3 +76,9 @@ jobs:
         run: |
           $report = Get-Content ./reports/latest/report.json -Raw | ConvertFrom-Json
           "Report mode: $($report.mode); applications: $(@($report.applications).Count). Download the report artifact and open report.html." >> $env:GITHUB_STEP_SUMMARY
+          "| Policy observation | Status | Count |" >> $env:GITHUB_STEP_SUMMARY
+          "|---|---|---:|" >> $env:GITHUB_STEP_SUMMARY
+          $report.applications.findings | Group-Object rule,status | ForEach-Object {
+              "| $($_.Group[0].rule) | $($_.Group[0].status) | $($_.Count) |" >> $env:GITHUB_STEP_SUMMARY
+          }
+          "Catalog entries include platform/resource applications. Confirm SSO applicability before remediation. Manual checks remain required." >> $env:GITHUB_STEP_SUMMARY
