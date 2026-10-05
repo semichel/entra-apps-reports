@@ -6,6 +6,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../scripts/Report.Common.ps1')
 . (Join-Path $PSScriptRoot '../scripts/Report.Evidence.ps1')
+. (Join-Path $PSScriptRoot '../scripts/Report.Deployment.ps1')
 
 #= Test assertion
 function Assert-Report {
@@ -75,6 +76,29 @@ Get-ChildItem -LiteralPath $repo -Recurse -Filter '*.ps1' | ForEach-Object {
 $wrongTenantBlocked = $false
 try { & (Join-Path $repo 'scripts/Export-EntraAppsReport.ps1') -TenantId '99999999-9999-9999-9999-999999999999' } catch { $wrongTenantBlocked = $true }
 Assert-Report $wrongTenantBlocked 'Foreign tenant must be rejected before authentication.'
+$configTestPath = Join-Path $repo 'reports/production-config-test.json'
+[void](New-Item -ItemType Directory -Path (Split-Path $configTestPath) -Force)
+$configTest = @{schemaVersion='1.0'; enabled=$false; environment='production'; tenantId='11111111-1111-1111-1111-111111111111'; clientId='22222222-2222-2222-2222-222222222222'; tenantDisplayName='Production test'; githubRepository='example/private-report'; githubBranch='main'; includeExtendedEvidence=$true; applicationIds=@(); artifactRetentionDays=7}
+$configTest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $configTestPath
+$draft = Read-ReportDeployment $configTestPath -AllowDisabled
+Assert-Report ((Get-Str $draft 'tenantDisplayName') -eq 'Production test') 'Draft config validation failed.'
+$blocked = $false
+try { Read-ReportDeployment $configTestPath | Out-Null } catch { $blocked = $_.Exception.Message -like '*disabled*' }
+Assert-Report $blocked 'Disabled production config must be blocked.'
+$configTest['enabled'] = $true
+$configTest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $configTestPath
+$production = Read-ReportDeployment $configTestPath
+Assert-Report ($production['applicationIds'].Count -eq 0) 'Empty application scope must select all apps.'
+Assert-ReportDeploymentContext @{TenantId=$production['tenantId']; ClientId=$production['clientId']; Environment='Global'} $production
+foreach ($badContext in @(@{TenantId='wrong'; ClientId=$production['clientId']; Environment='Global'}, @{TenantId=$production['tenantId']; ClientId='wrong'; Environment='Global'})) {
+    $blocked = $false; try { Assert-ReportDeploymentContext $badContext $production } catch { $blocked = $true }
+    Assert-Report $blocked 'Production context mismatch must be blocked.'
+}
+$configTest['tenantId'] = '37dadda4-f2a4-47a8-8482-d40fe1a5aa48'
+$configTest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $configTestPath
+$blocked = $false
+try { Read-ReportDeployment $configTestPath | Out-Null } catch { $blocked = $_.Exception.Message -like '*MichelAB*' }
+Assert-Report $blocked 'Production config must reject the lab tenant.'
 $output = Join-Path $repo 'reports/test'
 & (Join-Path $repo 'scripts/Export-EntraAppsReport.ps1') -Demo -OutputDirectory $output
 $report = Get-Content -LiteralPath (Join-Path $output 'report.json') -Raw | ConvertFrom-Json -AsHashtable

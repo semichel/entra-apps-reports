@@ -36,7 +36,7 @@ def render(report, artifact_url):
                        'Full raw configuration is available in the HTML report artifact.\n\n</details>\n')
     template = (Path(__file__).parent / 'vendor/maester-2.2.0/ReportTemplate.md').read_text(encoding='utf-8')
     values = {'TenantName': cell(results['TenantName']), 'TestDate': cell(results['ExecutedAt']) + ' (UTC)',
-              'ModuleVersion': '2.2.0', 'TestSummary': '\n'.join(summary), 'TestDetails': '\n'.join(details)}
+              'ModuleVersion': '2.2.0', 'TestSummary': '\n'.join(summary)}
     values.update({key: str(results[key]) for key in ['TotalCount', 'PassedCount', 'FailedCount',
                   'InvestigateCount', 'SkippedCount', 'NotRunCount']})
     for key, value in values.items():
@@ -54,6 +54,20 @@ def render(report, artifact_url):
     if report.get('mode') == 'SNAPSHOT':
         introduction += '**SNAPSHOT:** This run renders previously collected real tenant data; no fresh Entra query was made.\n\n'
     template = template.replace('## Application summary', introduction + '## Application summary', 1)
+    budget = 1024 * 1024 - len(template.encode('utf-8')) - 2048
+    included = []
+    used = 0
+    for detail in details:
+        size = len(detail.encode('utf-8')) + 1
+        if used + size > budget:
+            break
+        included.append(detail)
+        used += size
+    detail_text = '\n'.join(included)
+    if len(included) < len(details):
+        detail_text += (f'\n\n**GitHub summary size limit:** Expanded details are shown for {len(included)} of {len(details)} entries. '
+                        'The application summary above lists every entry. The HTML/JSON artifact contains all application and tenant details.\n')
+    template = template.replace('%TestDetails%', detail_text)
     if len(template.encode('utf-8')) >= 1024 * 1024:
         raise ValueError("Summary exceeds GitHub's 1 MiB per-step limit; split it before publishing")
     return template

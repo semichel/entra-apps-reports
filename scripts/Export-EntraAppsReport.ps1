@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-Exports read-only enterprise application configuration findings from a lab tenant.
+Exports read-only enterprise application configuration findings from the lab or configured production tenant.
 .DESCRIPTION
 Uses Microsoft Graph GET requests only. Demo mode uses local synthetic data.
-Live mode requires an explicit lab tenant ID and validates Graph context.
+Production requires an enabled deployment config and the matching reader Graph context.
 .EXAMPLE
 ./scripts/Export-EntraAppsReport.ps1 -Demo
 .EXAMPLE
@@ -19,12 +19,24 @@ param(
     [switch]$UseAzureCli,
     [switch]$IncludeExtendedEvidence,
     [string]$SnapshotPath,
+    [string]$ConfigPath,
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '../reports/latest')
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Report.Common.ps1')
 $script:LogPath = if ($env:IACPORTAL_LOG) { $env:IACPORTAL_LOG } else { Join-Path ([IO.Path]::GetTempPath()) ('entra-apps-report-{0}.log' -f [guid]::NewGuid()) }
+$deployment = $null
+if ($ConfigPath) {
+    if ($Demo -or $SnapshotPath -or $UseAzureCli -or $UseDeviceCode -or -not $UseExistingContext) { throw 'Production config requires -UseExistingContext with the dedicated reader; demo, snapshot and interactive auth options cannot be combined.' }
+    . (Join-Path $PSScriptRoot 'Report.Deployment.ps1')
+    $deployment = Read-ReportDeployment $ConfigPath
+    if ($PSBoundParameters.ContainsKey('TenantId') -and $TenantId -ne (Get-Str $deployment 'tenantId')) { throw 'TenantId conflicts with production configuration.' }
+    if ($PSBoundParameters.ContainsKey('ApplicationIds') -or $PSBoundParameters.ContainsKey('IncludeExtendedEvidence')) { throw 'Set report scope in production.json when using ConfigPath.' }
+    $TenantId = Get-Str $deployment 'tenantId'
+    $ApplicationIds = $deployment['applicationIds']
+    $IncludeExtendedEvidence = [bool](Get-Val $deployment 'includeExtendedEvidence')
+}
 if ($SnapshotPath) {
     if ($Demo -or $UseAzureCli -or $UseExistingContext -or $UseDeviceCode) { throw 'Snapshot rendering cannot be combined with demo or authentication options.' }
     $snapshot = Get-Content -LiteralPath $SnapshotPath -Raw | ConvertFrom-Json -AsHashtable
@@ -46,8 +58,8 @@ if ($Demo) {
 }
 else {
     $parsedTenant = [guid]::Empty
-    if (-not [guid]::TryParse($TenantId, [ref]$parsedTenant) -or $parsedTenant -eq [guid]::Empty) { throw 'Provide the confirmed MichelAB lab tenant GUID using -TenantId.' }
-    if ($parsedTenant -ne [guid]'37dadda4-f2a4-47a8-8482-d40fe1a5aa48') { throw 'This project is restricted to the confirmed MichelAB lab tenant.' }
+    if (-not [guid]::TryParse($TenantId, [ref]$parsedTenant) -or $parsedTenant -eq [guid]::Empty) { throw 'Provide a valid tenant GUID.' }
+    if ($null -eq $deployment -and $parsedTenant -ne [guid]'37dadda4-f2a4-47a8-8482-d40fe1a5aa48') { throw 'A non-lab tenant requires an explicit enabled production deployment config.' }
     Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
     if ($UseAzureCli) {
         $cliTenant = az account show --query tenantId -o tsv
@@ -68,7 +80,8 @@ else {
         }
     }
     $context = Get-MgContext
-    if ($null -eq $context -or $context.TenantId -ne $TenantId -or $context.Environment -ne 'Global') { throw 'Graph context does not match the requested lab tenant / Global cloud. No report generated.' }
+    if ($null -eq $context -or $context.TenantId -ne $TenantId -or $context.Environment -ne 'Global') { throw 'Graph context does not match the configured tenant / Global cloud. No report generated.' }
+    if ($null -ne $deployment) { Assert-ReportDeploymentContext $context $deployment }
     Write-ReportLog ("Reading application configuration from tenant {0}." -f $context.TenantId)
     $registrations = @(Invoke-MgGetAll 'https://graph.microsoft.com/v1.0/applications?$select=id,appId,displayName,web,spa,publicClient,identifierUris,optionalClaims,passwordCredentials,keyCredentials')
     $registrationByApp = @{}
@@ -89,6 +102,8 @@ $report = [ordered]@{
     schemaVersion = '1.0'; tenantId = $TenantId; generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
     mode = $(if ($Demo) { 'DEMO' } else { 'LIVE' }); applications = $applications.ToArray()
 }
+$report['tenantDisplayName'] = if ($null -ne $deployment) { Get-Str $deployment 'tenantDisplayName' } elseif ($Demo) { 'Demo' } else { 'MichelAB' }
+$report['deploymentEnvironment'] = if ($null -ne $deployment) { 'production' } elseif ($Demo) { 'demo' } else { 'lab' }
 if ($IncludeExtendedEvidence -and -not $Demo) {
     . (Join-Path $PSScriptRoot 'Report.Evidence.ps1')
     Add-ExtendedEvidence $report

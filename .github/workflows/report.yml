@@ -4,16 +4,16 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: snapshot = last real inventory; lab = fresh tenant read; demo = synthetic
+        description: snapshot = lab inventory; lab/prod = fresh configured tenant; demo = synthetic
         type: choice
-        options: [snapshot, lab, demo]
+        options: [snapshot, lab, demo, prod]
         default: snapshot
 permissions:
   contents: read
 jobs:
   report:
     runs-on: ubuntu-latest
-    environment: lab
+    environment: ${{ inputs.mode == 'prod' && 'production' || 'lab' }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -26,29 +26,51 @@ jobs:
           ./tests/Test-Report.ps1
           python -m unittest discover -s tests -p test_render_report.py
           if ($LASTEXITCODE -ne 0) { throw 'Lifecycle report checks failed.' }
-      - name: Validate lab settings
-        if: inputs.mode == 'lab'
+      - name: Validate reader settings
+        id: settings
+        if: inputs.mode == 'lab' || inputs.mode == 'prod'
         shell: pwsh
         env:
           LAB_TENANT_ID: ${{ vars.LAB_TENANT_ID }}
           LAB_CLIENT_ID: ${{ vars.LAB_CLIENT_ID }}
+          REPORT_MODE: ${{ inputs.mode }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if ($env:LAB_TENANT_ID -ne '37dadda4-f2a4-47a8-8482-d40fe1a5aa48') { throw 'Expected MichelAB lab tenant ID.' }
-          $clientGuid = [guid]::Empty
-          if (-not [guid]::TryParse($env:LAB_CLIENT_ID, [ref]$clientGuid) -or $clientGuid -eq [guid]::Empty) { throw 'Set LAB_CLIENT_ID in the lab environment.' }
-      - name: Federated lab login
-        if: inputs.mode == 'lab'
+          if ($env:REPORT_MODE -eq 'prod') {
+              . ./scripts/Report.Common.ps1
+              . ./scripts/Report.Deployment.ps1
+              $config = Read-ReportDeployment ./config/production.json
+              if ($env:GITHUB_REPOSITORY -ne (Get-Str $config 'githubRepository')) { throw 'Production repository does not match config.' }
+              if ($env:GITHUB_REF -ne ('refs/heads/' + (Get-Str $config 'githubBranch'))) { throw 'Production must run from its configured trusted branch.' }
+              $private = gh api "repos/$env:GITHUB_REPOSITORY" --jq '.private'
+              if ($LASTEXITCODE -ne 0 -or $private -ne 'true') { throw 'Production reports require a private repository.' }
+              $readerTenant = Get-Str $config 'tenantId'
+              $readerClient = Get-Str $config 'clientId'
+              $retention = Get-Val $config 'artifactRetentionDays'
+          } else {
+              if ($env:LAB_TENANT_ID -ne '37dadda4-f2a4-47a8-8482-d40fe1a5aa48') { throw 'Expected MichelAB lab tenant ID.' }
+              $clientGuid = [guid]::Empty
+              if (-not [guid]::TryParse($env:LAB_CLIENT_ID, [ref]$clientGuid) -or $clientGuid -eq [guid]::Empty) { throw 'Set LAB_CLIENT_ID in the lab environment.' }
+              $readerTenant = $env:LAB_TENANT_ID
+              $readerClient = $env:LAB_CLIENT_ID
+              $retention = 14
+          }
+          Add-Content $env:GITHUB_OUTPUT "tenant_id=$readerTenant"
+          Add-Content $env:GITHUB_OUTPUT "client_id=$readerClient"
+          Add-Content $env:GITHUB_OUTPUT "retention_days=$retention"
+      - name: Federated reader login
+        if: inputs.mode == 'lab' || inputs.mode == 'prod'
         uses: azure/login@v3
         with:
-          tenant-id: ${{ vars.LAB_TENANT_ID }}
-          client-id: ${{ vars.LAB_CLIENT_ID }}
+          tenant-id: ${{ steps.settings.outputs.tenant_id }}
+          client-id: ${{ steps.settings.outputs.client_id }}
           allow-no-subscriptions: true
       - name: Generate report
         shell: pwsh
         env:
           REPORT_MODE: ${{ inputs.mode }}
-          LAB_TENANT_ID: ${{ vars.LAB_TENANT_ID }}
-          LAB_CLIENT_ID: ${{ vars.LAB_CLIENT_ID }}
+          READER_TENANT_ID: ${{ steps.settings.outputs.tenant_id }}
+          READER_CLIENT_ID: ${{ steps.settings.outputs.client_id }}
         run: |
           if ($env:REPORT_MODE -eq 'snapshot') {
               ./scripts/Export-EntraAppsReport.ps1 -SnapshotPath ./published/lab/report.json
@@ -64,8 +86,12 @@ jobs:
               Connect-MgGraph -AccessToken $secureToken -NoWelcome
               try {
                   $context = Get-MgContext
-                  if ($context.ClientId -ne $env:LAB_CLIENT_ID) { throw 'Unexpected Graph client ID.' }
-                  ./scripts/Export-EntraAppsReport.ps1 -TenantId $env:LAB_TENANT_ID -UseExistingContext -IncludeExtendedEvidence
+                  if ($context.ClientId -ne $env:READER_CLIENT_ID -or $context.TenantId -ne $env:READER_TENANT_ID) { throw 'Unexpected Graph reader identity.' }
+                  if ($env:REPORT_MODE -eq 'prod') {
+                      ./scripts/Export-EntraAppsReport.ps1 -ConfigPath ./config/production.json -UseExistingContext
+                  } else {
+                      ./scripts/Export-EntraAppsReport.ps1 -TenantId $env:READER_TENANT_ID -UseExistingContext -IncludeExtendedEvidence
+                  }
               } finally {
                   Disconnect-MgGraph | Out-Null
               }
@@ -76,7 +102,7 @@ jobs:
         with:
           name: entra-apps-report-${{ inputs.mode }}-${{ github.run_number }}
           path: reports/latest/
-          retention-days: 14
+          retention-days: ${{ steps.settings.outputs.retention_days || '14' }}
           if-no-files-found: error
       - name: Show readable report on the Actions page
         shell: pwsh

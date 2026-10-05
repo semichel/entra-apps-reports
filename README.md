@@ -13,7 +13,9 @@ The [downloadable report bundle](https://github.com/semichel/entra-apps-reports/
 **Test tenant:** MichelAB / `Betancoraleman.onmicrosoft.com`  
 **Tenant ID:** `37dadda4-f2a4-47a8-8482-d40fe1a5aa48`
 
-The script rejects other tenants before authentication and verifies the signed-in Graph context before reading data. It does not change applications, owners, assignments, permissions or tenant policies.
+The default script accepts only the confirmed lab tenant. Production requires an explicit enabled configuration and its matching tenant/client Graph context. It does not change applications, owners, assignments, permissions or tenant policies.
+
+**Production deployment:** fill [config/production.json](config/production.json), then follow [the manual production setup guide](docs/production-deployment.md). The same workflow offers `prod`, using a dedicated federated reader and the `production` environment. Production stays disabled until you complete the configuration and manual setup.
 
 ## Start locally
 
@@ -78,7 +80,7 @@ Extended evidence includes registration owners, federated identity credentials, 
 
 Run **Actions → Entra application report → Run workflow**. Select `snapshot` to render the previously collected real inventory without credentials, `lab` for a fresh tenant read after identity setup, or `demo` for synthetic data. The default is `snapshot`. Every summary clearly identifies its mode and source collection time. Expand applications directly on the Actions Summary page; for the full searchable HTML report, download the artifact and open `report.html`.
 
-There is one workflow: **Entra application report**. It runs its checks, generates the report and publishes the summary/artifact on a GitHub-hosted Ubuntu runner. HTML, JSON and CSV artifacts have 14-day retention. It does not commit generated reports. The existing `published/lab/` inventory is a dated reference snapshot. No scheduled tenant runs are enabled.
+There is one workflow: **Entra application report**. It runs its checks, generates the report and publishes the summary/artifact on a GitHub-hosted Ubuntu runner. Lab/demo/snapshot artifacts have 14-day retention; production uses its config, defaulting to 7 days. It does not commit generated reports. The existing `published/lab/` inventory is a dated reference snapshot. No scheduled tenant runs are enabled.
 
 Live runner access requires an app registration with Microsoft Graph **Application.Read.All** application permission, administrator consent, and a GitHub federated identity credential. No Azure subscription is required. Those tenant resources are not created by the reporting script.
 

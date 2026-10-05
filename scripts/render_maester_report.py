@@ -96,7 +96,7 @@ def build_results(report, now):
             **{status + 'Count': counts[status] for status in ['Failed', 'Passed', 'Error', 'Investigate', 'Skipped', 'NotRun']},
             'ExecutedAt': utc_date(report.get('generatedAtUtc')) or now.isoformat(), 'TotalDuration': '00:00:00',
             'UserDuration': '00:00:00', 'DiscoveryDuration': '00:00:00', 'FrameworkDuration': '00:00:00',
-            'TenantId': report.get('tenantId'), 'TenantName': 'MichelAB · ' + mode, 'TenantLogos': None,
+            'TenantId': report.get('tenantId'), 'TenantName': (report.get('tenantDisplayName') or ('MichelAB' if report.get('tenantId') == '37dadda4-f2a4-47a8-8482-d40fe1a5aa48' else report.get('tenantId') or 'Entra tenant')) + ' · ' + mode, 'TenantLogos': None,
             'Account': None, 'CurrentVersion': {'Major': 2, 'Minor': 2, 'Build': 0, 'Revision': -1},
             'LatestVersion': 'Unknown', 'SystemInfo': {}, 'PowerShellInfo': {}, 'LoadedModules': [],
             'InvokeCommand': 'Read-only Entra application inventory adapter', 'MgContext': None,

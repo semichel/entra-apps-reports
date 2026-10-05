@@ -1,5 +1,7 @@
 # GitHub runner setup
 
+For production, use [the production deployment guide](production-deployment.md) and `config/production.json`. The `prod` option uses the separate `production` environment in this same workflow; the lab instructions below remain for MichelAB.
+
 Use a private repository because the article and live application inventory contain internal administration information. Each successful run publishes expandable application findings directly in its Actions Summary and uploads a self-contained interactive HTML report and evidence as an artifact. The existing `published/lab/` inventory is a dated reference snapshot.
 
 Current repository: [semichel/entra-apps-reports](https://github.com/semichel/entra-apps-reports), private. The `lab` environment, its tenant-ID variable and the `main` deployment restriction are already configured. Demo execution and artifact upload have passed. Complete the application identity, consent, federated credential and client-ID variable steps below to enable live reporting.

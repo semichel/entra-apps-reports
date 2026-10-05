@@ -89,6 +89,17 @@ class ReportTests(unittest.TestCase):
         self.assertIn('SNAPSHOT:', summary)
         self.assertNotIn('%TestSummary%', summary)
 
+    def test_large_production_summary_preserves_index_and_limits_expanded_details(self):
+        path = Path(__file__).resolve().parents[1] / 'published/lab/report.json'
+        report = json.loads(path.read_text(encoding='utf-8-sig'))
+        report['tenantDisplayName'] = 'Production tenant'
+        report['applications'] *= 3
+        summary = render_summary(report, 'https://github.com/example/private-report/actions')
+        self.assertLess(len(summary.encode('utf-8')), 1024 * 1024)
+        self.assertIn('Production tenant', summary)
+        self.assertIn('GitHub summary size limit', summary)
+        self.assertIn('APP.1002:', summary)
+
 
 if __name__ == "__main__":
     unittest.main()
