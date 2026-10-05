@@ -62,7 +62,7 @@ Each successful run writes:
 | `assignments.csv` | Assigned users/groups and role identifiers |
 | `credentials.csv` | Certificate and secret dates, lifetime and expiry findings; no credential values |
 
-The HTML report provides an expiry calendar with expired / 30 / 60 / 90-day states, named enterprise/registration owners, assigned principals, granted application and delegated API permissions, requested-versus-granted permission comparisons, federation and recent sign-ins. Search by application or owner, or filter to expiring credentials and ownership gaps. Raw configuration is available in secondary expandable sections.
+Both the Actions summary and HTML report group information into collapsed application containers. Expand an app, then expand its owners, certificates and secrets, assignments, granted or requested API permissions, federation, sign-ins or policy findings. Credential sections show expired / 30 / 60 / 90-day states. The HTML report supports search by application or owner and filters for expiring credentials and ownership gaps. Tenant evidence and raw configuration are also expandable.
 
 By default these are in `reports/latest/`. Use `-OutputDirectory` to select another folder. Runtime output is ignored by Git; the readable live report and evidence are committed under `published/lab/`. Logs use `$env:IACPORTAL_LOG` when set, otherwise a unique temporary log.
 

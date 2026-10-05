@@ -7,13 +7,23 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 from publish_report import cell, collection, table
-from render_report import expiry, owner_rows, owner_names, permission_rows, utc_date
+from render_report import expiry, owner_rows, permission_rows, requested_rows, utc_date
+
+
+def section(title, content):
+    return f'<details><summary><strong>{cell(title)}</strong></summary>\n\n{content}\n\n</details>\n'
+
+
+def records(headers, rows, empty='No records in the collected evidence.'):
+    rows = list(rows)
+    return table(headers, rows) if rows else empty
 
 
 def render(report, artifact_url):
     apps = sorted(report["applications"], key=lambda item: (item.get("displayName") or "").casefold())
     now = datetime.now(timezone.utc)
     by_id = {app.get("servicePrincipalId"): app for app in apps}
+    by_app_id = {app.get("appId"): app for app in apps}
     mode = report["mode"]
     label = {"LIVE": "Fresh tenant collection", "SNAPSHOT": "Previously collected real tenant snapshot", "DEMO": "Synthetic demo data"}.get(mode, mode)
     parts = ["# Entra application report\n", f"**{label}**\n",
@@ -24,47 +34,48 @@ def render(report, artifact_url):
              "Catalog entries include platform/resource applications; confirm SSO policy applicability before remediation. Manual sign-in, token/assertion validation, TLS, approvals and business documentation remain required.\n"]
     if mode == "SNAPSHOT":
         parts.append("**This run renders existing tenant data; it does not query Entra again. Choose `lab` for a fresh collection after configuring the runner identity.**\n")
-    parts.extend(["## Certificate and secret expiry\n", f"Days remaining calculated as of UTC {now.isoformat()}. Inventory freshness is shown above.\n",
-        table(["Application", "Owner(s)", "Type", "Credential", "Expires UTC", "Days left", "Expiry state"],
-            [(app.get("displayName"), owner_names(app), "Certificate" if credential.get("kind") == "keyCredentials" else "Client secret",
-              credential.get("displayName") or credential.get("keyId"), utc_date(credential.get("endDateTime")), expiry(credential, now)[1], expiry(credential, now)[0])
-             for app in apps for credential in collection(app.get("credentials"))]),
-        "## Recorded owners\n", table(["Application", "Owner source", "Owner name", "Object type", "Owner ID"],
-            [(app.get("displayName"), *row) for app in apps for row in owner_rows(app)]),
-        "## Granted API permissions\n", table(["Application", "Resource API", "Type", "Granted permission", "Consent / grant", "Grant or role ID"],
-            [(app.get("displayName"), *row) for app in apps for row in permission_rows(app, by_id)])])
+    parts.append(f"Expiry calculations as of UTC {utc_date(now.isoformat())}. Expand an application, then expand the information you need.\n")
     counts = Counter((finding["rule"], finding["status"]) for app in apps for finding in app["findings"])
-    parts.extend(["## Policy observation totals\n", table(["Check", "Status", "Count"],
-                   [(rule, status, count) for (rule, status), count in sorted(counts.items())])])
+    parts.append(section('Policy observation totals', records(["Check", "Status", "Count"],
+                   [(rule, status, count) for (rule, status), count in sorted(counts.items())])))
     tenant = report.get("tenantEvidence") or {}
     if tenant:
-        parts.extend(["## Evidence coverage\n", table(["Evidence", "Availability", "Records"],
-            [(key, value.get("status"), len(collection(value.get("items")))) for key, value in tenant.items() if isinstance(value, dict)])])
+        parts.append(section('Tenant evidence coverage', records(["Evidence", "Availability", "Records"],
+            [(key, value.get("status"), len(collection(value.get("items")))) for key, value in tenant.items() if isinstance(value, dict)])))
     parts.append("## Application findings\n")
     for app in apps:
-        block = [f"<details><summary><strong>{cell(app.get('displayName'))}</strong> — {cell(app.get('status'))}</summary>\n",
-                 f"\nClient ID: `{cell(app.get('appId'))}`  \nEnterprise application ID: `{cell(app.get('servicePrincipalId'))}`  \nSSO hint: {cell(app.get('protocol'))} · Enabled: {cell(app.get('accountEnabled'))} · Assignment required: {cell(app.get('assignmentRequired'))}\n",
-                 table(["Check", "Status", "Evidence / next action"],
-                      [(item["rule"], item["status"], item["evidence"]) for item in app["findings"] if item["status"] in {"FAIL", "WARN", "UNKNOWN"}])]
+        block = [section('Application profile', records(['Property', 'Value'], [
+                 ('Client ID', app.get('appId')), ('Enterprise application ID', app.get('servicePrincipalId')),
+                 ('SSO hint', app.get('protocol')), ('Enabled', app.get('accountEnabled')),
+                 ('Assignment required', app.get('assignmentRequired'))])),
+                 section('Policy findings and manual validation', records(["Check", "Status", "Evidence / next action"],
+                      [(item["rule"], item["status"], item["evidence"]) for item in app["findings"]]))]
         owners = owner_rows(app)
-        if owners:
-            block.extend(["\n**Owners**\n", table(["Source", "Name", "Type", "ID"], owners)])
+        block.append(section('Owners', records(["Source", "Name", "Type", "ID"], owners, 'No owners recorded in the available evidence.')))
         assignments = collection(app.get("assignments"))
-        if assignments:
-            block.extend(["\n**Assigned users/groups**\n", table(["Name", "Type", "Role ID"], [(item.get("principalDisplayName"), item.get("principalType"), item.get("appRoleId")) for item in assignments])])
+        block.append(section('Assigned users and groups', records(["Name", "Type", "Role ID"], [(item.get("principalDisplayName"), item.get("principalType"), item.get("appRoleId")) for item in assignments])))
         credentials = collection(app.get("credentials"))
-        if credentials:
-            block.extend(["\n**Credential expiry**\n", table(["Name", "Kind", "Expires UTC", "Days left", "Lifetime days", "Status"],
-                        [(item.get("displayName"), item.get("kind"), utc_date(item.get("endDateTime")), expiry(item, now)[1], item.get("lifetimeDays"), expiry(item, now)[0]) for item in credentials])])
+        block.append(section('Certificates and client secrets', records(["Name", "Kind", "Valid from UTC", "Expires UTC", "Days left", "Lifetime days", "Expiry state"],
+                        [(item.get("displayName") or item.get('keyId'), item.get("kind"), utc_date(item.get('startDateTime')), utc_date(item.get("endDateTime")), expiry(item, now)[1], item.get("lifetimeDays"), expiry(item, now)[0]) for item in credentials], 'No local credential metadata recorded; credentials may live in an external home tenant.')))
         redirects = collection(app.get("redirectUris"))
-        if redirects:
-            block.extend(["\n**Callback URLs**\n", table(["URL"], [(value,) for value in redirects])])
-        grants = app.get("applicationPermissionGrants") or {}
-        if collection(grants.get("items")):
-            block.extend(["\n**Granted application permissions**\n", table(["Resource", "Permission", "Role ID"],
-                        [(item.get("resourceDisplayName"), item.get("permission"), item.get("appRoleId")) for item in collection(grants.get("items"))])])
-        block.append("\nFull configuration, optional claims, federation, raw evidence and manual checks are in the HTML artifact.\n\n</details>\n")
-        parts.extend(block)
+        block.append(section('Redirect / callback URLs', records(["URL"], [(value,) for value in redirects])))
+        permission_content = records(['Resource API', 'Type', 'Granted permission', 'Consent / grant', 'Role or grant ID'], permission_rows(app, by_id))
+        for key, label in [('applicationPermissionGrants', 'Application grants'), ('delegatedConsentGrants', 'Delegated consent')]:
+            if (app.get(key) or {}).get('status') != 'AVAILABLE':
+                permission_content += f'\n\n{label}: evidence unavailable.'
+        block.append(section('Granted API permissions', permission_content))
+        block.append(section('Requested API permissions and consent', records(['Resource API', 'Type', 'Requested permission', 'Consent evidence', 'Permission ID'], requested_rows(app, by_app_id))))
+        registration = app.get('registration') or {}
+        federation = registration.get('federatedIdentityCredentials') or {}
+        block.append(section('Federated credentials', records(['Name', 'Issuer', 'Subject', 'Audiences'],
+            [(item.get('name'), item.get('issuer'), item.get('subject'), '; '.join(collection(item.get('audiences')))) for item in collection(federation.get('items'))],
+            'No federation records.' if federation.get('status') == 'AVAILABLE' else 'Federation evidence unavailable.')))
+        signins = app.get('recentSignIns') or {}
+        block.append(section('Recent sign-ins', records(['UTC time', 'User', 'Error code', 'Conditional Access'],
+            [(utc_date(item.get('createdDateTime')), item.get('userPrincipalName') or item.get('userId'), (item.get('status') or {}).get('errorCode'), item.get('conditionalAccessStatus')) for item in collection(signins.get('items'))],
+            'No sign-ins in the collected window.' if signins.get('status') == 'AVAILABLE' else 'Sign-in evidence unavailable.')))
+        block.append('\nFull raw configuration is in the HTML artifact.\n')
+        parts.append(section(f"{app.get('displayName')} — {app.get('status')}", '\n'.join(block)))
     text = "\n".join(parts)
     if len(text.encode("utf-8")) >= 1024 * 1024:
         raise ValueError("Summary exceeds GitHub's 1 MiB per-step limit; split it before publishing")
