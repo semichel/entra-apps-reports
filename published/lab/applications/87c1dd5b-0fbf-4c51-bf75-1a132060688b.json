@@ -1,0 +1,189 @@
+{
+  "displayName": "spn-admin-3",
+  "servicePrincipalId": "87c1dd5b-0fbf-4c51-bf75-1a132060688b",
+  "appId": "23044e50-b885-4ea8-9622-bd6151231194",
+  "accountEnabled": true,
+  "protocol": "UNKNOWN",
+  "preferredSingleSignOnMode": null,
+  "status": "FAIL",
+  "registrationAvailable": true,
+  "assignmentRequired": false,
+  "owners": [],
+  "assignments": [],
+  "redirectUris": [],
+  "identifierUris": [],
+  "samlEntityIdentifiers": [
+    "23044e50-b885-4ea8-9622-bd6151231194"
+  ],
+  "samlSettings": null,
+  "loginUrl": null,
+  "logoutUrl": null,
+  "tokenEncryptionKeyId": null,
+  "preferredTokenSigningKeyThumbprint": null,
+  "optionalClaims": null,
+  "implicitGrantSettings": {
+    "enableIdTokenIssuance": false,
+    "enableAccessTokenIssuance": false
+  },
+  "credentials": [
+    {
+      "source": "AppRegistration",
+      "kind": "passwordCredentials",
+      "keyId": "e1f13f34-e90d-48df-9b9e-a06ef4ef128a",
+      "displayName": null,
+      "usage": null,
+      "startDateTime": "06/30/2026 07:51:47",
+      "endDateTime": "06/30/2027 07:51:47",
+      "daysRemaining": 267.0,
+      "lifetimeDays": 365.0,
+      "maximumDays": 90,
+      "status": "FAIL"
+    }
+  ],
+  "findings": [
+    {
+      "rule": "AssignmentRequired",
+      "status": "FAIL",
+      "evidence": "Configured value: False"
+    },
+    {
+      "rule": "TwoHumanOwners",
+      "status": "FAIL",
+      "evidence": "Human owners: 0; total owners: 0. Automation owners are preserved."
+    },
+    {
+      "rule": "RedirectUriSecurity",
+      "status": "UNKNOWN",
+      "evidence": "Non-HTTPS/non-localhost URIs: . Native-app custom schemes need separate review."
+    },
+    {
+      "rule": "CredentialDates",
+      "status": "FAIL",
+      "evidence": "Policy: secrets <=90 days; certificates <=365 days; warning at <=30 days remaining. Retired keys may still be listed."
+    },
+    {
+      "rule": "GroupAssignmentsPreferred",
+      "status": "WARN",
+      "evidence": "Groups: 0; direct users: 0. Nested membership is not evaluated."
+    },
+    {
+      "rule": "ProtocolConfirmation",
+      "status": "MANUAL",
+      "evidence": "Graph SSO hint: . A missing hint does not prove absence of OIDC."
+    },
+    {
+      "rule": "AuthenticationAndClaims",
+      "status": "MANUAL",
+      "evidence": "Test assigned/unassigned users, emitted claims, assertion validation, token lifetime, redirects, and logout in the actual application."
+    },
+    {
+      "rule": "SamlVerificationAndEncryption",
+      "status": "MANUAL",
+      "evidence": "Verify request-signature enforcement, active signing certificate, claim mappings, metadata and encryption requirement against the delivery form. UNKNOWN protocol still requires protocol review."
+    },
+    {
+      "rule": "OperationsAndDocumentation",
+      "status": "MANUAL",
+      "evidence": "Review sign-in/audit logs, Conditional Access, TLS configuration, approval, business/support contacts and delivery form."
+    }
+  ],
+  "appOwnerOrganizationId": "37dadda4-f2a4-47a8-8482-d40fe1a5aa48",
+  "publisherName": null,
+  "servicePrincipalType": "Application",
+  "appRoles": null,
+  "oauth2PermissionScopes": null,
+  "description": null,
+  "homepage": null,
+  "tags": null,
+  "info": {
+    "marketingUrl": null,
+    "supportUrl": null,
+    "termsOfServiceUrl": null,
+    "privacyStatementUrl": null,
+    "logoUrl": null
+  },
+  "registration": {
+    "id": "d19fb62a-325e-4d4b-b481-c1ac722ca311",
+    "appId": "23044e50-b885-4ea8-9622-bd6151231194",
+    "displayName": "spn-admin-3",
+    "description": null,
+    "signInAudience": "AzureADMyOrg",
+    "publisherDomain": "Betancoraleman.onmicrosoft.com",
+    "createdDateTime": "2026-06-30T07:49:28Z",
+    "web": {
+      "redirectUris": [],
+      "homePageUrl": null,
+      "implicitGrantSettings": {
+        "enableIdTokenIssuance": false,
+        "enableAccessTokenIssuance": false
+      },
+      "logoutUrl": null,
+      "redirectUriSettings": []
+    },
+    "spa": {
+      "redirectUris": []
+    },
+    "publicClient": {
+      "redirectUris": []
+    },
+    "identifierUris": null,
+    "optionalClaims": null,
+    "groupMembershipClaims": null,
+    "api": {
+      "requestedAccessTokenVersion": null,
+      "oauth2PermissionScopes": [],
+      "preAuthorizedApplications": [],
+      "acceptMappedClaims": null,
+      "knownClientApplications": []
+    },
+    "appRoles": null,
+    "requiredResourceAccess": null,
+    "info": {
+      "marketingUrl": null,
+      "supportUrl": null,
+      "termsOfServiceUrl": null,
+      "privacyStatementUrl": null,
+      "logoUrl": null
+    },
+    "tags": null,
+    "owners": {
+      "status": "AVAILABLE",
+      "items": [],
+      "reason": null
+    },
+    "federatedIdentityCredentials": {
+      "status": "AVAILABLE",
+      "items": [],
+      "reason": null
+    },
+    "credentials": [
+      {
+        "source": "AppRegistration",
+        "kind": "passwordCredentials",
+        "keyId": "e1f13f34-e90d-48df-9b9e-a06ef4ef128a",
+        "displayName": null,
+        "usage": null,
+        "startDateTime": "06/30/2026 07:51:47",
+        "endDateTime": "06/30/2027 07:51:47",
+        "daysRemaining": 267.0,
+        "lifetimeDays": 365.0,
+        "maximumDays": 90,
+        "status": "FAIL"
+      }
+    ]
+  },
+  "applicationPermissionGrants": {
+    "status": "AVAILABLE",
+    "items": [],
+    "reason": null
+  },
+  "delegatedConsentGrants": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "recentSignIns": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "scopeNote": "Catalog observation; apply the supplied SSO requirements only after confirming this is an in-scope production SSO application. Platform/resource apps may legitimately differ."
+}

@@ -23,6 +23,12 @@ def table(headers, rows):
     return "\n".join(lines) + "\n"
 
 
+def collection(value):
+    if value is None:
+        return []
+    return [value] if isinstance(value, dict) else value
+
+
 def evidence(value):
     # A long fence prevents embedded Markdown in directory strings escaping the block.
     text = json.dumps(value, indent=2, ensure_ascii=False)
@@ -83,9 +89,9 @@ def publish(source, destination):
                            ("recentSignIns", "Recent sign-ins"), ("optionalClaims", "Optional claims")]:
             page.extend([f"\n## {title}\n", evidence(app.get(key))])
         page.extend(["\n## Exposed application roles\n", table(["Permission / role", "Display name", "Role ID"],
-                    [(v.get("value"), v.get("displayName"), v.get("id")) for v in app.get("appRoles") or []]),
+                    [(v.get("value"), v.get("displayName"), v.get("id")) for v in collection(app.get("appRoles"))]),
                     "\n## Exposed delegated scopes\n", table(["Scope", "Admin consent display name", "Scope ID"],
-                    [(v.get("value"), v.get("adminConsentDisplayName"), v.get("id")) for v in app.get("oauth2PermissionScopes") or []]),
+                    [(v.get("value"), v.get("adminConsentDisplayName"), v.get("id")) for v in collection(app.get("oauth2PermissionScopes"))]),
                     f"\n## Complete collected application configuration\n\n[View the complete application evidence on GitHub]({object_id}.json).\n"])
         write(destination / "applications" / f"{object_id}.json", json.dumps(app, indent=2, ensure_ascii=False) + "\n")
         write(destination / "applications" / f"{object_id}.md", "\n".join(page))

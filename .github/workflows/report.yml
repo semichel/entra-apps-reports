@@ -1,12 +1,13 @@
 name: Entra application report
+run-name: Entra applications — ${{ inputs.mode }} report
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Use synthetic data or the MichelAB lab
+        description: snapshot = last real inventory; lab = fresh tenant read; demo = synthetic
         type: choice
-        options: [demo, lab]
-        default: demo
+        options: [snapshot, lab, demo]
+        default: snapshot
 permissions:
   contents: read
 jobs:
@@ -46,7 +47,9 @@ jobs:
           LAB_TENANT_ID: ${{ vars.LAB_TENANT_ID }}
           LAB_CLIENT_ID: ${{ vars.LAB_CLIENT_ID }}
         run: |
-          if ($env:REPORT_MODE -eq 'demo') {
+          if ($env:REPORT_MODE -eq 'snapshot') {
+              ./scripts/Export-EntraAppsReport.ps1 -SnapshotPath ./published/lab/report.json
+          } elseif ($env:REPORT_MODE -eq 'demo') {
               ./scripts/Export-EntraAppsReport.ps1 -Demo
           } else {
               Install-Module Microsoft.Graph.Authentication -Scope CurrentUser -Repository PSGallery -Force
@@ -64,53 +67,17 @@ jobs:
                   Disconnect-MgGraph | Out-Null
               }
           }
-      - name: Upload downloadable report
+      - name: Upload interactive HTML report and evidence
+        id: artifact
         uses: actions/upload-artifact@v4
         with:
           name: entra-apps-report-${{ inputs.mode }}-${{ github.run_number }}
           path: reports/latest/
           retention-days: 14
           if-no-files-found: error
-      - name: Summary
+      - name: Show readable report on the Actions page
         shell: pwsh
+        env:
+          REPORT_ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
         run: |
-          $report = Get-Content ./reports/latest/report.json -Raw | ConvertFrom-Json
-          "Report mode: $($report.mode); applications: $(@($report.applications).Count). Download the report artifact and open report.html." >> $env:GITHUB_STEP_SUMMARY
-          "| Policy observation | Status | Count |" >> $env:GITHUB_STEP_SUMMARY
-          "|---|---|---:|" >> $env:GITHUB_STEP_SUMMARY
-          $report.applications.findings | Group-Object rule,status | ForEach-Object {
-              "| $($_.Group[0].rule) | $($_.Group[0].status) | $($_.Count) |" >> $env:GITHUB_STEP_SUMMARY
-          }
-          "Catalog entries include platform/resource applications. Confirm SSO applicability before remediation. Manual checks remain required." >> $env:GITHUB_STEP_SUMMARY
-  publish:
-    name: Publish readable live report in Git
-    needs: report
-    if: inputs.mode == 'lab' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    environment: lab
-    timeout-minutes: 10
-    concurrency:
-      group: publish-entra-lab-report
-      cancel-in-progress: false
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-      - uses: actions/download-artifact@v4
-        with:
-          name: entra-apps-report-lab-${{ github.run_number }}
-          path: reports/latest
-      - name: Render GitHub-readable report
-        run: python scripts/publish_report.py --source reports/latest --destination published/lab
-      - name: Commit report evidence
-        shell: bash
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add --all published/lab
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'Update live MichelAB application report'
-          git pull --rebase origin main
-          git push origin HEAD:main
+          python scripts/write_action_summary.py --report reports/latest/report.json --artifact-url $env:REPORT_ARTIFACT_URL --output $env:GITHUB_STEP_SUMMARY

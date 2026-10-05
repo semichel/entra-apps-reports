@@ -1,0 +1,170 @@
+{
+  "displayName": "IGA Automation ROPC Client",
+  "servicePrincipalId": "6b4b0d53-1a63-40ef-aac3-29d64758707a",
+  "appId": "b586dd35-9b09-4bf7-8665-88e177807c5f",
+  "accountEnabled": true,
+  "protocol": "UNKNOWN",
+  "preferredSingleSignOnMode": null,
+  "status": "FAIL",
+  "registrationAvailable": true,
+  "assignmentRequired": false,
+  "owners": [],
+  "assignments": [],
+  "redirectUris": [],
+  "identifierUris": [],
+  "samlEntityIdentifiers": [
+    "b586dd35-9b09-4bf7-8665-88e177807c5f"
+  ],
+  "samlSettings": null,
+  "loginUrl": null,
+  "logoutUrl": null,
+  "tokenEncryptionKeyId": null,
+  "preferredTokenSigningKeyThumbprint": null,
+  "optionalClaims": null,
+  "implicitGrantSettings": {
+    "enableIdTokenIssuance": false,
+    "enableAccessTokenIssuance": false
+  },
+  "credentials": [],
+  "findings": [
+    {
+      "rule": "AssignmentRequired",
+      "status": "FAIL",
+      "evidence": "Configured value: False"
+    },
+    {
+      "rule": "TwoHumanOwners",
+      "status": "FAIL",
+      "evidence": "Human owners: 0; total owners: 0. Automation owners are preserved."
+    },
+    {
+      "rule": "RedirectUriSecurity",
+      "status": "UNKNOWN",
+      "evidence": "Non-HTTPS/non-localhost URIs: . Native-app custom schemes need separate review."
+    },
+    {
+      "rule": "CredentialDates",
+      "status": "MANUAL",
+      "evidence": "Policy: secrets <=90 days; certificates <=365 days; warning at <=30 days remaining. Retired keys may still be listed."
+    },
+    {
+      "rule": "GroupAssignmentsPreferred",
+      "status": "WARN",
+      "evidence": "Groups: 0; direct users: 0. Nested membership is not evaluated."
+    },
+    {
+      "rule": "ProtocolConfirmation",
+      "status": "MANUAL",
+      "evidence": "Graph SSO hint: . A missing hint does not prove absence of OIDC."
+    },
+    {
+      "rule": "AuthenticationAndClaims",
+      "status": "MANUAL",
+      "evidence": "Test assigned/unassigned users, emitted claims, assertion validation, token lifetime, redirects, and logout in the actual application."
+    },
+    {
+      "rule": "SamlVerificationAndEncryption",
+      "status": "MANUAL",
+      "evidence": "Verify request-signature enforcement, active signing certificate, claim mappings, metadata and encryption requirement against the delivery form. UNKNOWN protocol still requires protocol review."
+    },
+    {
+      "rule": "OperationsAndDocumentation",
+      "status": "MANUAL",
+      "evidence": "Review sign-in/audit logs, Conditional Access, TLS configuration, approval, business/support contacts and delivery form."
+    }
+  ],
+  "appOwnerOrganizationId": "37dadda4-f2a4-47a8-8482-d40fe1a5aa48",
+  "publisherName": null,
+  "servicePrincipalType": "Application",
+  "appRoles": null,
+  "oauth2PermissionScopes": null,
+  "description": null,
+  "homepage": null,
+  "tags": null,
+  "info": {
+    "marketingUrl": null,
+    "supportUrl": null,
+    "termsOfServiceUrl": null,
+    "privacyStatementUrl": null,
+    "logoUrl": null
+  },
+  "registration": {
+    "id": "72147016-3080-409b-bbde-bc1d065e2aad",
+    "appId": "b586dd35-9b09-4bf7-8665-88e177807c5f",
+    "displayName": "IGA Automation ROPC Client",
+    "description": null,
+    "signInAudience": "AzureADMyOrg",
+    "publisherDomain": "Betancoraleman.onmicrosoft.com",
+    "createdDateTime": "2026-07-22T10:26:30Z",
+    "web": {
+      "redirectUris": [],
+      "homePageUrl": null,
+      "implicitGrantSettings": {
+        "enableIdTokenIssuance": false,
+        "enableAccessTokenIssuance": false
+      },
+      "logoutUrl": null,
+      "redirectUriSettings": []
+    },
+    "spa": {
+      "redirectUris": []
+    },
+    "publicClient": {
+      "redirectUris": []
+    },
+    "identifierUris": null,
+    "optionalClaims": null,
+    "groupMembershipClaims": null,
+    "api": {
+      "requestedAccessTokenVersion": null,
+      "oauth2PermissionScopes": [],
+      "preAuthorizedApplications": [],
+      "acceptMappedClaims": null,
+      "knownClientApplications": []
+    },
+    "appRoles": null,
+    "requiredResourceAccess": null,
+    "info": {
+      "marketingUrl": null,
+      "supportUrl": null,
+      "termsOfServiceUrl": null,
+      "privacyStatementUrl": null,
+      "logoUrl": null
+    },
+    "tags": null,
+    "owners": {
+      "status": "AVAILABLE",
+      "items": [],
+      "reason": null
+    },
+    "federatedIdentityCredentials": {
+      "status": "AVAILABLE",
+      "items": [],
+      "reason": null
+    },
+    "credentials": []
+  },
+  "applicationPermissionGrants": {
+    "status": "AVAILABLE",
+    "items": [],
+    "reason": null
+  },
+  "delegatedConsentGrants": {
+    "status": "AVAILABLE",
+    "items": [
+      {
+        "consentType": "AllPrincipals",
+        "clientId": "6b4b0d53-1a63-40ef-aac3-29d64758707a",
+        "resourceId": "9aff273f-aa0c-4ad9-a1f4-2c86ff11a875",
+        "id": "Uw1La2Ma70CqwynWR1hwej8n_5oMqtlKofQshv8RqHU",
+        "principalId": null,
+        "scope": "EntitlementManagement.ReadWrite.All RoleManagement.ReadWrite.Directory Group.ReadWrite.All AdministrativeUnit.ReadWrite.All AccessReview.ReadWrite.All User.Read.All PrivilegedAccess.Read.AzureADGroup PrivilegedEligibilitySchedule.ReadWrite.AzureADGroup RoleManagementPolicy.ReadWrite.AzureADGroup"
+      }
+    ]
+  },
+  "recentSignIns": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "scopeNote": "Catalog observation; apply the supplied SSO requirements only after confirming this is an in-scope production SSO application. Platform/resource apps may legitimately differ."
+}

@@ -1,0 +1,172 @@
+{
+  "displayName": "CompliancePolicy",
+  "servicePrincipalId": "ecc9b04a-0f76-4bef-8f08-5ce7471737bc",
+  "appId": "644c1b11-f63f-45fa-826b-a9d2801db711",
+  "accountEnabled": true,
+  "protocol": "UNKNOWN",
+  "preferredSingleSignOnMode": null,
+  "status": "FAIL",
+  "registrationAvailable": false,
+  "assignmentRequired": false,
+  "owners": [],
+  "assignments": [],
+  "redirectUris": [],
+  "identifierUris": [
+    null
+  ],
+  "samlEntityIdentifiers": [
+    "644c1b11-f63f-45fa-826b-a9d2801db711",
+    "https://substrate.office.com/CompliancePolicy",
+    "https://substrate.office.com/CompliancePolicySyncService"
+  ],
+  "samlSettings": null,
+  "loginUrl": null,
+  "logoutUrl": null,
+  "tokenEncryptionKeyId": null,
+  "preferredTokenSigningKeyThumbprint": null,
+  "optionalClaims": null,
+  "implicitGrantSettings": null,
+  "credentials": [],
+  "findings": [
+    {
+      "rule": "AssignmentRequired",
+      "status": "FAIL",
+      "evidence": "Configured value: False"
+    },
+    {
+      "rule": "TwoHumanOwners",
+      "status": "FAIL",
+      "evidence": "Human owners: 0; total owners: 0. Automation owners are preserved."
+    },
+    {
+      "rule": "RedirectUriSecurity",
+      "status": "UNKNOWN",
+      "evidence": "Non-HTTPS/non-localhost URIs: . Native-app custom schemes need separate review."
+    },
+    {
+      "rule": "CredentialDates",
+      "status": "MANUAL",
+      "evidence": "Policy: secrets <=90 days; certificates <=365 days; warning at <=30 days remaining. Retired keys may still be listed."
+    },
+    {
+      "rule": "GroupAssignmentsPreferred",
+      "status": "WARN",
+      "evidence": "Groups: 0; direct users: 0. Nested membership is not evaluated."
+    },
+    {
+      "rule": "ProtocolConfirmation",
+      "status": "MANUAL",
+      "evidence": "Graph SSO hint: . A missing hint does not prove absence of OIDC."
+    },
+    {
+      "rule": "AuthenticationAndClaims",
+      "status": "MANUAL",
+      "evidence": "Test assigned/unassigned users, emitted claims, assertion validation, token lifetime, redirects, and logout in the actual application."
+    },
+    {
+      "rule": "SamlVerificationAndEncryption",
+      "status": "MANUAL",
+      "evidence": "Verify request-signature enforcement, active signing certificate, claim mappings, metadata and encryption requirement against the delivery form. UNKNOWN protocol still requires protocol review."
+    },
+    {
+      "rule": "OperationsAndDocumentation",
+      "status": "MANUAL",
+      "evidence": "Review sign-in/audit logs, Conditional Access, TLS configuration, approval, business/support contacts and delivery form."
+    }
+  ],
+  "appOwnerOrganizationId": "f8cdef31-a31e-4b4a-93e4-5f571e91255a",
+  "publisherName": null,
+  "servicePrincipalType": "Application",
+  "appRoles": [
+    {
+      "value": "UnifiedPolicy.Tenant.Read",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "UnifiedPolicy.Tenant.Read",
+      "isEnabled": true,
+      "origin": "Application",
+      "id": "338446c9-b981-47d7-a96b-3e02921beace",
+      "displayName": "UnifiedPolicy.Tenant.Read"
+    },
+    {
+      "value": "CompliancePolicy-Internal.ReadWrite",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "CompliancePolicy-Internal.ReadWrite",
+      "isEnabled": true,
+      "origin": "Application",
+      "id": "925d5331-83ad-4bb7-ac7c-a78de52131ef",
+      "displayName": "CompliancePolicy-Internal.ReadWrite"
+    },
+    {
+      "value": "User.Read.All",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "User.Read.All",
+      "isEnabled": true,
+      "origin": "Application",
+      "id": "7b307ce5-1a3c-4a39-861b-ee5bf8a58941",
+      "displayName": "User.Read.All"
+    }
+  ],
+  "oauth2PermissionScopes": [
+    {
+      "id": "5320cf34-4df3-4e6b-9727-fa69d3e2dd76",
+      "userConsentDisplayName": "UnifiedPolicy.User.Read",
+      "adminConsentDescription": "UnifiedPolicy.User.Read",
+      "value": "UnifiedPolicy.User.Read",
+      "type": "User",
+      "isEnabled": true,
+      "adminConsentDisplayName": "UnifiedPolicy.User.Read",
+      "userConsentDescription": "UnifiedPolicy.User.Read"
+    },
+    {
+      "id": "80692e1c-c3eb-439d-8ca4-ff20ad6cbb0e",
+      "userConsentDisplayName": "CompliancePolicy-Internal.ReadWrite",
+      "adminConsentDescription": "CompliancePolicy-Internal.ReadWrite",
+      "value": "CompliancePolicy-Internal.ReadWrite",
+      "type": "User",
+      "isEnabled": true,
+      "adminConsentDisplayName": "CompliancePolicy-Internal.ReadWrite",
+      "userConsentDescription": "CompliancePolicy-Internal.ReadWrite"
+    },
+    {
+      "id": "d5b659cc-4375-466d-9c53-348d569b471a",
+      "userConsentDisplayName": "User.Read",
+      "adminConsentDescription": "User.Read",
+      "value": "User.Read",
+      "type": "User",
+      "isEnabled": true,
+      "adminConsentDisplayName": "User.Read",
+      "userConsentDescription": "User.Read"
+    }
+  ],
+  "description": null,
+  "homepage": null,
+  "tags": null,
+  "info": {
+    "marketingUrl": null,
+    "supportUrl": null,
+    "termsOfServiceUrl": null,
+    "privacyStatementUrl": null,
+    "logoUrl": null
+  },
+  "registration": null,
+  "applicationPermissionGrants": {
+    "status": "AVAILABLE",
+    "items": [],
+    "reason": null
+  },
+  "delegatedConsentGrants": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "recentSignIns": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "scopeNote": "Catalog observation; apply the supplied SSO requirements only after confirming this is an in-scope production SSO application. Platform/resource apps may legitimately differ."
+}

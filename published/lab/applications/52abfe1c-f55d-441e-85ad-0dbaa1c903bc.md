@@ -2,6 +2,8 @@
 
 [← All applications](../README.md)
 
+Collected UTC: 2026-10-05T12:01:04.2888438+02:00
+
 | Property | Value |
 | --- | --- |
 | Client ID | 75e725bf-66ce-4cea-9b9a-5c4caae57f33 |
@@ -105,124 +107,19 @@ null
 ```
 
 
+## Exposed application roles
+
+| Permission / role | Display name | Role ID |
+| --- | --- | --- |
+
+
+## Exposed delegated scopes
+
+| Scope | Admin consent display name | Scope ID |
+| --- | --- | --- |
+| Dicom.ReadWrite | Read and write DICOM | e69ab058-b8ae-4c0f-b687-5d97888ddccb |
+
+
 ## Complete collected application configuration
 
-
-```json
-{
-  "displayName": "Azure API for DICOM",
-  "servicePrincipalId": "52abfe1c-f55d-441e-85ad-0dbaa1c903bc",
-  "appId": "75e725bf-66ce-4cea-9b9a-5c4caae57f33",
-  "accountEnabled": true,
-  "protocol": "UNKNOWN",
-  "preferredSingleSignOnMode": null,
-  "status": "FAIL",
-  "registrationAvailable": false,
-  "assignmentRequired": false,
-  "owners": [],
-  "assignments": [],
-  "redirectUris": [],
-  "identifierUris": [
-    null
-  ],
-  "samlEntityIdentifiers": [
-    "75e725bf-66ce-4cea-9b9a-5c4caae57f33",
-    "https://dicom.healthcareapis.azure.com",
-    "https://dicom.healthcareapis.azure.com/"
-  ],
-  "samlSettings": null,
-  "loginUrl": null,
-  "logoutUrl": null,
-  "tokenEncryptionKeyId": null,
-  "preferredTokenSigningKeyThumbprint": null,
-  "optionalClaims": null,
-  "implicitGrantSettings": null,
-  "credentials": [],
-  "findings": [
-    {
-      "rule": "AssignmentRequired",
-      "status": "FAIL",
-      "evidence": "Configured value: False"
-    },
-    {
-      "rule": "TwoHumanOwners",
-      "status": "FAIL",
-      "evidence": "Human owners: 0; total owners: 0. Automation owners are preserved."
-    },
-    {
-      "rule": "RedirectUriSecurity",
-      "status": "UNKNOWN",
-      "evidence": "Non-HTTPS/non-localhost URIs: . Native-app custom schemes need separate review."
-    },
-    {
-      "rule": "CredentialDates",
-      "status": "MANUAL",
-      "evidence": "Policy: secrets <=90 days; certificates <=365 days; warning at <=30 days remaining. Retired keys may still be listed."
-    },
-    {
-      "rule": "GroupAssignmentsPreferred",
-      "status": "WARN",
-      "evidence": "Groups: 0; direct users: 0. Nested membership is not evaluated."
-    },
-    {
-      "rule": "ProtocolConfirmation",
-      "status": "MANUAL",
-      "evidence": "Graph SSO hint: . A missing hint does not prove absence of OIDC."
-    },
-    {
-      "rule": "AuthenticationAndClaims",
-      "status": "MANUAL",
-      "evidence": "Test assigned/unassigned users, emitted claims, assertion validation, token lifetime, redirects, and logout in the actual application."
-    },
-    {
-      "rule": "SamlVerificationAndEncryption",
-      "status": "MANUAL",
-      "evidence": "Verify request-signature enforcement, active signing certificate, claim mappings, metadata and encryption requirement against the delivery form. UNKNOWN protocol still requires protocol review."
-    },
-    {
-      "rule": "OperationsAndDocumentation",
-      "status": "MANUAL",
-      "evidence": "Review sign-in/audit logs, Conditional Access, TLS configuration, approval, business/support contacts and delivery form."
-    }
-  ],
-  "appOwnerOrganizationId": "f8cdef31-a31e-4b4a-93e4-5f571e91255a",
-  "publisherName": null,
-  "servicePrincipalType": "Application",
-  "appRoles": null,
-  "oauth2PermissionScopes": {
-    "id": "e69ab058-b8ae-4c0f-b687-5d97888ddccb",
-    "userConsentDisplayName": "Read and write DICOM",
-    "adminConsentDescription": "Allows application to read and write DICOM resources.",
-    "value": "Dicom.ReadWrite",
-    "type": "User",
-    "isEnabled": true,
-    "adminConsentDisplayName": "Read and write DICOM",
-    "userConsentDescription": "Allows application to read and write DICOM resources."
-  },
-  "description": null,
-  "homepage": null,
-  "tags": null,
-  "info": {
-    "marketingUrl": null,
-    "supportUrl": null,
-    "termsOfServiceUrl": null,
-    "privacyStatementUrl": null,
-    "logoUrl": null
-  },
-  "registration": null,
-  "applicationPermissionGrants": {
-    "status": "AVAILABLE",
-    "items": [],
-    "reason": null
-  },
-  "delegatedConsentGrants": {
-    "status": "AVAILABLE",
-    "items": []
-  },
-  "recentSignIns": {
-    "status": "AVAILABLE",
-    "items": []
-  },
-  "scopeNote": "Catalog observation; apply the supplied SSO requirements only after confirming this is an in-scope production SSO application. Platform/resource apps may legitimately differ."
-}
-```
+[View the complete application evidence on GitHub](52abfe1c-f55d-441e-85ad-0dbaa1c903bc.json).

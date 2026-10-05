@@ -2,6 +2,8 @@
 
 [← All applications](../README.md)
 
+Collected UTC: 2026-10-05T12:01:04.2888438+02:00
+
 | Property | Value |
 | --- | --- |
 | Client ID | 6b91db1b-f05b-405a-a0b2-e3f60b28d645 |
@@ -105,123 +107,19 @@ null
 ```
 
 
+## Exposed application roles
+
+| Permission / role | Display name | Role ID |
+| --- | --- | --- |
+
+
+## Exposed delegated scopes
+
+| Scope | Admin consent display name | Scope ID |
+| --- | --- | --- |
+| Sites.Read.All | Read all Site information | 0c981b21-0229-4b35-a0b9-82acfa228288 |
+
+
 ## Complete collected application configuration
 
-
-```json
-{
-  "displayName": "M365 Admin Services",
-  "servicePrincipalId": "e4cd9a3f-a710-4cda-b0be-ff5ef19b22ff",
-  "appId": "6b91db1b-f05b-405a-a0b2-e3f60b28d645",
-  "accountEnabled": true,
-  "protocol": "UNKNOWN",
-  "preferredSingleSignOnMode": null,
-  "status": "FAIL",
-  "registrationAvailable": false,
-  "assignmentRequired": false,
-  "owners": [],
-  "assignments": [],
-  "redirectUris": [],
-  "identifierUris": [
-    null
-  ],
-  "samlEntityIdentifiers": [
-    "6b91db1b-f05b-405a-a0b2-e3f60b28d645",
-    "https://m365adminservices.microsoft.com"
-  ],
-  "samlSettings": null,
-  "loginUrl": null,
-  "logoutUrl": null,
-  "tokenEncryptionKeyId": null,
-  "preferredTokenSigningKeyThumbprint": null,
-  "optionalClaims": null,
-  "implicitGrantSettings": null,
-  "credentials": [],
-  "findings": [
-    {
-      "rule": "AssignmentRequired",
-      "status": "FAIL",
-      "evidence": "Configured value: False"
-    },
-    {
-      "rule": "TwoHumanOwners",
-      "status": "FAIL",
-      "evidence": "Human owners: 0; total owners: 0. Automation owners are preserved."
-    },
-    {
-      "rule": "RedirectUriSecurity",
-      "status": "UNKNOWN",
-      "evidence": "Non-HTTPS/non-localhost URIs: . Native-app custom schemes need separate review."
-    },
-    {
-      "rule": "CredentialDates",
-      "status": "MANUAL",
-      "evidence": "Policy: secrets <=90 days; certificates <=365 days; warning at <=30 days remaining. Retired keys may still be listed."
-    },
-    {
-      "rule": "GroupAssignmentsPreferred",
-      "status": "WARN",
-      "evidence": "Groups: 0; direct users: 0. Nested membership is not evaluated."
-    },
-    {
-      "rule": "ProtocolConfirmation",
-      "status": "MANUAL",
-      "evidence": "Graph SSO hint: . A missing hint does not prove absence of OIDC."
-    },
-    {
-      "rule": "AuthenticationAndClaims",
-      "status": "MANUAL",
-      "evidence": "Test assigned/unassigned users, emitted claims, assertion validation, token lifetime, redirects, and logout in the actual application."
-    },
-    {
-      "rule": "SamlVerificationAndEncryption",
-      "status": "MANUAL",
-      "evidence": "Verify request-signature enforcement, active signing certificate, claim mappings, metadata and encryption requirement against the delivery form. UNKNOWN protocol still requires protocol review."
-    },
-    {
-      "rule": "OperationsAndDocumentation",
-      "status": "MANUAL",
-      "evidence": "Review sign-in/audit logs, Conditional Access, TLS configuration, approval, business/support contacts and delivery form."
-    }
-  ],
-  "appOwnerOrganizationId": "f8cdef31-a31e-4b4a-93e4-5f571e91255a",
-  "publisherName": null,
-  "servicePrincipalType": "Application",
-  "appRoles": null,
-  "oauth2PermissionScopes": {
-    "id": "0c981b21-0229-4b35-a0b9-82acfa228288",
-    "userConsentDisplayName": "Read all Site information",
-    "adminConsentDescription": "Allows the app to read all Sites information in your organization, on your behalf.",
-    "value": "Sites.Read.All",
-    "type": "User",
-    "isEnabled": false,
-    "adminConsentDisplayName": "Read all Site information",
-    "userConsentDescription": "Allows the app to read Site information in your organization, on your behalf."
-  },
-  "description": null,
-  "homepage": null,
-  "tags": null,
-  "info": {
-    "marketingUrl": null,
-    "supportUrl": null,
-    "termsOfServiceUrl": null,
-    "privacyStatementUrl": null,
-    "logoUrl": null
-  },
-  "registration": null,
-  "applicationPermissionGrants": {
-    "status": "AVAILABLE",
-    "items": [],
-    "reason": null
-  },
-  "delegatedConsentGrants": {
-    "status": "AVAILABLE",
-    "items": []
-  },
-  "recentSignIns": {
-    "status": "AVAILABLE",
-    "items": []
-  },
-  "scopeNote": "Catalog observation; apply the supplied SSO requirements only after confirming this is an in-scope production SSO application. Platform/resource apps may legitimately differ."
-}
-```
+[View the complete application evidence on GitHub](e4cd9a3f-a710-4cda-b0be-ff5ef19b22ff.json).

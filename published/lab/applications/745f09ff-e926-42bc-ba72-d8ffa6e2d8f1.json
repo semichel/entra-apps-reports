@@ -1,0 +1,161 @@
+{
+  "displayName": "sc-ga-spn1",
+  "servicePrincipalId": "745f09ff-e926-42bc-ba72-d8ffa6e2d8f1",
+  "appId": "6e23a480-4c94-411d-9f45-7d7e74364a6f",
+  "accountEnabled": false,
+  "protocol": "UNKNOWN",
+  "preferredSingleSignOnMode": null,
+  "status": "FAIL",
+  "registrationAvailable": true,
+  "assignmentRequired": false,
+  "owners": [],
+  "assignments": [],
+  "redirectUris": [],
+  "identifierUris": [],
+  "samlEntityIdentifiers": [
+    "6e23a480-4c94-411d-9f45-7d7e74364a6f"
+  ],
+  "samlSettings": null,
+  "loginUrl": null,
+  "logoutUrl": null,
+  "tokenEncryptionKeyId": null,
+  "preferredTokenSigningKeyThumbprint": null,
+  "optionalClaims": null,
+  "implicitGrantSettings": {
+    "enableIdTokenIssuance": false,
+    "enableAccessTokenIssuance": false
+  },
+  "credentials": [],
+  "findings": [
+    {
+      "rule": "AssignmentRequired",
+      "status": "FAIL",
+      "evidence": "Configured value: False"
+    },
+    {
+      "rule": "TwoHumanOwners",
+      "status": "FAIL",
+      "evidence": "Human owners: 0; total owners: 0. Automation owners are preserved."
+    },
+    {
+      "rule": "RedirectUriSecurity",
+      "status": "UNKNOWN",
+      "evidence": "Non-HTTPS/non-localhost URIs: . Native-app custom schemes need separate review."
+    },
+    {
+      "rule": "CredentialDates",
+      "status": "MANUAL",
+      "evidence": "Policy: secrets <=90 days; certificates <=365 days; warning at <=30 days remaining. Retired keys may still be listed."
+    },
+    {
+      "rule": "GroupAssignmentsPreferred",
+      "status": "WARN",
+      "evidence": "Groups: 0; direct users: 0. Nested membership is not evaluated."
+    },
+    {
+      "rule": "ProtocolConfirmation",
+      "status": "MANUAL",
+      "evidence": "Graph SSO hint: . A missing hint does not prove absence of OIDC."
+    },
+    {
+      "rule": "AuthenticationAndClaims",
+      "status": "MANUAL",
+      "evidence": "Test assigned/unassigned users, emitted claims, assertion validation, token lifetime, redirects, and logout in the actual application."
+    },
+    {
+      "rule": "SamlVerificationAndEncryption",
+      "status": "MANUAL",
+      "evidence": "Verify request-signature enforcement, active signing certificate, claim mappings, metadata and encryption requirement against the delivery form. UNKNOWN protocol still requires protocol review."
+    },
+    {
+      "rule": "OperationsAndDocumentation",
+      "status": "MANUAL",
+      "evidence": "Review sign-in/audit logs, Conditional Access, TLS configuration, approval, business/support contacts and delivery form."
+    }
+  ],
+  "appOwnerOrganizationId": "37dadda4-f2a4-47a8-8482-d40fe1a5aa48",
+  "publisherName": null,
+  "servicePrincipalType": "Application",
+  "appRoles": null,
+  "oauth2PermissionScopes": null,
+  "description": null,
+  "homepage": null,
+  "tags": null,
+  "info": {
+    "marketingUrl": null,
+    "supportUrl": null,
+    "termsOfServiceUrl": null,
+    "privacyStatementUrl": null,
+    "logoUrl": null
+  },
+  "registration": {
+    "id": "fd9e77aa-3b32-42ff-be44-7f84d109e555",
+    "appId": "6e23a480-4c94-411d-9f45-7d7e74364a6f",
+    "displayName": "sc-ga-spn1",
+    "description": null,
+    "signInAudience": "AzureADMyOrg",
+    "publisherDomain": "Betancoraleman.onmicrosoft.com",
+    "createdDateTime": "2026-07-01T07:38:19Z",
+    "web": {
+      "redirectUris": [],
+      "homePageUrl": null,
+      "implicitGrantSettings": {
+        "enableIdTokenIssuance": false,
+        "enableAccessTokenIssuance": false
+      },
+      "logoutUrl": null,
+      "redirectUriSettings": []
+    },
+    "spa": {
+      "redirectUris": []
+    },
+    "publicClient": {
+      "redirectUris": []
+    },
+    "identifierUris": null,
+    "optionalClaims": null,
+    "groupMembershipClaims": null,
+    "api": {
+      "requestedAccessTokenVersion": null,
+      "oauth2PermissionScopes": [],
+      "preAuthorizedApplications": [],
+      "acceptMappedClaims": null,
+      "knownClientApplications": []
+    },
+    "appRoles": null,
+    "requiredResourceAccess": null,
+    "info": {
+      "marketingUrl": null,
+      "supportUrl": null,
+      "termsOfServiceUrl": null,
+      "privacyStatementUrl": null,
+      "logoUrl": null
+    },
+    "tags": null,
+    "owners": {
+      "status": "AVAILABLE",
+      "items": [],
+      "reason": null
+    },
+    "federatedIdentityCredentials": {
+      "status": "AVAILABLE",
+      "items": [],
+      "reason": null
+    },
+    "credentials": []
+  },
+  "applicationPermissionGrants": {
+    "status": "AVAILABLE",
+    "items": [],
+    "reason": null
+  },
+  "delegatedConsentGrants": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "recentSignIns": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "scopeNote": "Catalog observation; apply the supplied SSO requirements only after confirming this is an in-scope production SSO application. Platform/resource apps may legitimately differ."
+}

@@ -1,0 +1,170 @@
+{
+  "displayName": "M365 License Manager",
+  "servicePrincipalId": "52939292-5e2b-416c-8b3c-c1bcf5c95816",
+  "appId": "aeb86249-8ea3-49e2-900b-54cc8e308f85",
+  "accountEnabled": true,
+  "protocol": "UNKNOWN",
+  "preferredSingleSignOnMode": null,
+  "status": "FAIL",
+  "registrationAvailable": false,
+  "assignmentRequired": false,
+  "owners": [],
+  "assignments": [],
+  "redirectUris": [],
+  "identifierUris": [
+    null
+  ],
+  "samlEntityIdentifiers": [
+    "aeb86249-8ea3-49e2-900b-54cc8e308f85"
+  ],
+  "samlSettings": null,
+  "loginUrl": null,
+  "logoutUrl": null,
+  "tokenEncryptionKeyId": null,
+  "preferredTokenSigningKeyThumbprint": null,
+  "optionalClaims": null,
+  "implicitGrantSettings": null,
+  "credentials": [],
+  "findings": [
+    {
+      "rule": "AssignmentRequired",
+      "status": "FAIL",
+      "evidence": "Configured value: False"
+    },
+    {
+      "rule": "TwoHumanOwners",
+      "status": "FAIL",
+      "evidence": "Human owners: 0; total owners: 0. Automation owners are preserved."
+    },
+    {
+      "rule": "RedirectUriSecurity",
+      "status": "UNKNOWN",
+      "evidence": "Non-HTTPS/non-localhost URIs: . Native-app custom schemes need separate review."
+    },
+    {
+      "rule": "CredentialDates",
+      "status": "MANUAL",
+      "evidence": "Policy: secrets <=90 days; certificates <=365 days; warning at <=30 days remaining. Retired keys may still be listed."
+    },
+    {
+      "rule": "GroupAssignmentsPreferred",
+      "status": "WARN",
+      "evidence": "Groups: 0; direct users: 0. Nested membership is not evaluated."
+    },
+    {
+      "rule": "ProtocolConfirmation",
+      "status": "MANUAL",
+      "evidence": "Graph SSO hint: . A missing hint does not prove absence of OIDC."
+    },
+    {
+      "rule": "AuthenticationAndClaims",
+      "status": "MANUAL",
+      "evidence": "Test assigned/unassigned users, emitted claims, assertion validation, token lifetime, redirects, and logout in the actual application."
+    },
+    {
+      "rule": "SamlVerificationAndEncryption",
+      "status": "MANUAL",
+      "evidence": "Verify request-signature enforcement, active signing certificate, claim mappings, metadata and encryption requirement against the delivery form. UNKNOWN protocol still requires protocol review."
+    },
+    {
+      "rule": "OperationsAndDocumentation",
+      "status": "MANUAL",
+      "evidence": "Review sign-in/audit logs, Conditional Access, TLS configuration, approval, business/support contacts and delivery form."
+    }
+  ],
+  "appOwnerOrganizationId": "f8cdef31-a31e-4b4a-93e4-5f571e91255a",
+  "publisherName": null,
+  "servicePrincipalType": "Application",
+  "appRoles": [
+    {
+      "value": "LicensedProduct.Read.All",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "Enables the client to read all Licensed Product information.",
+      "isEnabled": true,
+      "origin": "Application",
+      "id": "9a7146cc-f57d-4b51-83a1-4e2a1b31b749",
+      "displayName": "LicensedProduct.Read.All"
+    },
+    {
+      "value": "AllotmentSource.Read.All",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "This allows an application to call Allotment to get details about subscription",
+      "isEnabled": true,
+      "origin": "Application",
+      "id": "a06291f3-06ca-4506-a783-d9c9d8af7e84",
+      "displayName": "AllotmentSource.Read.All"
+    },
+    {
+      "value": "LicenseManager.Fulfillment",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "Allows the application to submit Fulfillment actions.",
+      "isEnabled": true,
+      "origin": "Application",
+      "id": "cbbf6a32-6dcd-4f22-9be7-ffb128119fae",
+      "displayName": "LicenseManager.Fulfillment"
+    },
+    {
+      "value": "Policy.Read.AllowSelfServicePurchase",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "Allows the app to read AllowSelfServicePurchase policy settings, which govern the availability of self-service purchases by non-admin members of your organization.",
+      "isEnabled": true,
+      "origin": "Application",
+      "id": "5803e913-b904-44a0-9928-864642a45960",
+      "displayName": "Read AllowSelfServicePurchase policy settings"
+    },
+    {
+      "value": "Policy.ReadWrite.AllowSelfServicePurchase",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "Allows the app to read and manage AllowSelfServicePurchase policy settings, which govern the availability of self-service purchases by non-admin members of your organization.",
+      "isEnabled": true,
+      "origin": "Application",
+      "id": "78ff4d1f-611d-4a41-9989-698762b46a0e",
+      "displayName": "Read and manage AllowSelfServicePurchase policy settings"
+    }
+  ],
+  "oauth2PermissionScopes": {
+    "id": "fc946a4f-bc4d-413b-a090-b2c86113ec4f",
+    "userConsentDisplayName": "LicenseManager.AccessAsUser",
+    "adminConsentDescription": "Access the M365 License Manager service as the signed-in user",
+    "value": "LicenseManager.AccessAsUser",
+    "type": "User",
+    "isEnabled": true,
+    "adminConsentDisplayName": "LicenseManager.AccessAsUser",
+    "userConsentDescription": "Allows the application to impersonate the signed-in user when communicating with the M365 License Manager service."
+  },
+  "description": null,
+  "homepage": null,
+  "tags": null,
+  "info": {
+    "marketingUrl": null,
+    "supportUrl": null,
+    "termsOfServiceUrl": null,
+    "privacyStatementUrl": null,
+    "logoUrl": null
+  },
+  "registration": null,
+  "applicationPermissionGrants": {
+    "status": "AVAILABLE",
+    "items": [],
+    "reason": null
+  },
+  "delegatedConsentGrants": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "recentSignIns": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "scopeNote": "Catalog observation; apply the supplied SSO requirements only after confirming this is an in-scope production SSO application. Platform/resource apps may legitimately differ."
+}

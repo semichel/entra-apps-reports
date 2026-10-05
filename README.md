@@ -6,6 +6,8 @@ Private repository: [semichel/entra-apps-reports](https://github.com/semichel/en
 
 **[View the live Entra application report directly on GitHub](published/lab/README.md)** — browse the application index, click an application, and read its findings, owners, assignments, credentials and full configuration evidence. This is live tenant data; Actions demo artifacts contain synthetic data.
 
+**Per-run report:** open [Entra application report in Actions](https://github.com/semichel/entra-apps-reports/actions/workflows/report.yml). Each successful run shows expandable application findings directly on its Summary page and provides an interactive HTML artifact, following the Maester reporting pattern.
+
 The [downloadable report bundle](https://github.com/semichel/entra-apps-reports/releases/tag/lab-report-2026-10-05) is also available.
 
 **Test tenant:** MichelAB / `Betancoraleman.onmicrosoft.com`  
@@ -72,9 +74,9 @@ Extended evidence includes registration owners, federated identity credentials, 
 
 [Runner setup](docs/github-runner.md) explains the `lab` GitHub environment and secretless OIDC authentication.
 
-Run **Actions → Entra application report → Run workflow** and select `demo` or `lab`. The default is `demo`, which works without tenant credentials. Download the artifact from the completed run and open `report.html`.
+Run **Actions → Entra application report → Run workflow**. Select `snapshot` to render the previously collected real inventory without credentials, `lab` for a fresh tenant read after identity setup, or `demo` for synthetic data. The default is `snapshot`. Every summary clearly identifies its mode and source collection time. Expand applications directly on the Actions Summary page; for the full searchable HTML report, download the artifact and open `report.html`.
 
-The workflow uses a GitHub-hosted Ubuntu runner and uploads HTML, JSON and CSV together with 14-day retention. A successful live run also updates the GitHub-readable report in `published/lab/` on `main`. Demo runs never overwrite live reports. No scheduled tenant runs are enabled. Validation runs on pushes and pull requests without tenant access.
+The workflow uses a GitHub-hosted Ubuntu runner and uploads HTML, JSON and CSV together with 14-day retention. Each run publishes a native GitHub Actions summary with application details and a link to that run's artifact. It does not commit generated reports. The existing `published/lab/` inventory is a dated reference snapshot. No scheduled tenant runs are enabled. Validation runs on pushes and pull requests without tenant access.
 
 Live runner access requires an app registration with Microsoft Graph **Application.Read.All** application permission, administrator consent, and a GitHub federated identity credential. No Azure subscription is required. Those tenant resources are not created by the reporting script.
 

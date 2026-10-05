@@ -1,6 +1,6 @@
 # GitHub runner setup
 
-Use a private repository because the article and live application inventory contain internal administration information. Successful live reports are committed as readable Markdown and evidence in `published/lab/` on `main`, and also uploaded as downloadable workflow artifacts.
+Use a private repository because the article and live application inventory contain internal administration information. Each successful run publishes expandable application findings directly in its Actions Summary and uploads a self-contained interactive HTML report and evidence as an artifact. The existing `published/lab/` inventory is a dated reference snapshot.
 
 Current repository: [semichel/entra-apps-reports](https://github.com/semichel/entra-apps-reports), private. The `lab` environment, its tenant-ID variable and the `main` deployment restriction are already configured. Demo execution and artifact upload have passed. Complete the application identity, consent, federated credential and client-ID variable steps below to enable live reporting.
 
@@ -34,12 +34,12 @@ The existing local certificate reader has no verified GitHub federation setup, s
 ## Run
 
 1. Open Actions → **Entra application report** → Run workflow.
-2. Select `demo` for an offline synthetic report, or `lab` after completing the authentication setup.
+2. Select `snapshot` for the previously collected real inventory, `demo` for synthetic data, or `lab` for a fresh tenant read after completing the authentication setup.
 3. Wait for the job to complete.
 4. Download `entra-apps-report-<mode>-<run number>` under Artifacts.
 5. Extract it and open `report.html`. Use `report.json` for application evidence and `findings.csv` for filtering.
 
-For a successful **lab** run, the subsequent publication job also refreshes [the report index](../published/lab/README.md) in Git. Browse that index and click an application to view its report directly on GitHub. The publication job has repository contents-write permission; the collection job retains contents-read permission. Demo runs never publish over the live report. If branch protection prevents direct bot commits, the publication job will fail explicitly; configure the repository's publishing policy accordingly.
+Open the run's **Summary** page to read the report immediately. Expand an application to inspect its findings, assigned principals, credential expiry and callback URLs. The prominent artifact link downloads the full interactive HTML report. This matches Maester's native summary plus HTML artifact approach. GitHub does not execute interactive HTML inside a job summary. Workflow runs do not change the repository contents.
 
 A failing live API request stops the job without uploading a successful-looking incomplete report. Rule findings marked FAIL are report data and do not prevent artifact publication. Reports persist for 14 days and are visible to users with access to the repository/artifacts.
 

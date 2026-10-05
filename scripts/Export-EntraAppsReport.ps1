@@ -18,12 +18,23 @@ param(
     [switch]$UseExistingContext,
     [switch]$UseAzureCli,
     [switch]$IncludeExtendedEvidence,
+    [string]$SnapshotPath,
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '../reports/latest')
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Report.Common.ps1')
 $script:LogPath = if ($env:IACPORTAL_LOG) { $env:IACPORTAL_LOG } else { Join-Path ([IO.Path]::GetTempPath()) ('entra-apps-report-{0}.log' -f [guid]::NewGuid()) }
+if ($SnapshotPath) {
+    if ($Demo -or $UseAzureCli -or $UseExistingContext -or $UseDeviceCode) { throw 'Snapshot rendering cannot be combined with demo or authentication options.' }
+    $snapshot = Get-Content -LiteralPath $SnapshotPath -Raw | ConvertFrom-Json -AsHashtable
+    if ((Get-Str $snapshot 'mode') -ne 'LIVE' -or (Get-Str $snapshot 'tenantId') -ne '37dadda4-f2a4-47a8-8482-d40fe1a5aa48') { throw 'Expected a previously collected LIVE MichelAB report.' }
+    $snapshot['mode'] = 'SNAPSHOT'
+    $snapshot['renderedAtUtc'] = [DateTimeOffset]::UtcNow.ToString('o')
+    Export-AppReport $snapshot $OutputDirectory
+    Write-ReportLog 'Rendered an existing real lab snapshot; no fresh tenant query was made.' Green
+    return
+}
 $applications = [System.Collections.Generic.List[object]]::new()
 if ($Demo) {
     Write-ReportLog 'Creating a synthetic demo report (no tenant connection).'

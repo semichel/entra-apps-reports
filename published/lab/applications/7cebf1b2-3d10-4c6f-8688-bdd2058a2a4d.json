@@ -1,0 +1,129 @@
+{
+  "displayName": "OCaaS Client Interaction Service",
+  "servicePrincipalId": "7cebf1b2-3d10-4c6f-8688-bdd2058a2a4d",
+  "appId": "c2ada927-a9e2-4564-aae2-70775a2fa0af",
+  "accountEnabled": true,
+  "protocol": "UNKNOWN",
+  "preferredSingleSignOnMode": null,
+  "status": "FAIL",
+  "registrationAvailable": false,
+  "assignmentRequired": false,
+  "owners": [],
+  "assignments": [],
+  "redirectUris": [],
+  "identifierUris": [
+    null
+  ],
+  "samlEntityIdentifiers": [
+    "c2ada927-a9e2-4564-aae2-70775a2fa0af",
+    "https://clients.config.office.net/",
+    "https://clients.config.office.net",
+    "https://clients.config.gcc.office.net/"
+  ],
+  "samlSettings": null,
+  "loginUrl": null,
+  "logoutUrl": "https://clients.config.office.net/logout",
+  "tokenEncryptionKeyId": null,
+  "preferredTokenSigningKeyThumbprint": null,
+  "optionalClaims": null,
+  "implicitGrantSettings": null,
+  "credentials": [],
+  "findings": [
+    {
+      "rule": "AssignmentRequired",
+      "status": "FAIL",
+      "evidence": "Configured value: False"
+    },
+    {
+      "rule": "TwoHumanOwners",
+      "status": "FAIL",
+      "evidence": "Human owners: 0; total owners: 0. Automation owners are preserved."
+    },
+    {
+      "rule": "RedirectUriSecurity",
+      "status": "UNKNOWN",
+      "evidence": "Non-HTTPS/non-localhost URIs: . Native-app custom schemes need separate review."
+    },
+    {
+      "rule": "CredentialDates",
+      "status": "MANUAL",
+      "evidence": "Policy: secrets <=90 days; certificates <=365 days; warning at <=30 days remaining. Retired keys may still be listed."
+    },
+    {
+      "rule": "GroupAssignmentsPreferred",
+      "status": "WARN",
+      "evidence": "Groups: 0; direct users: 0. Nested membership is not evaluated."
+    },
+    {
+      "rule": "ProtocolConfirmation",
+      "status": "MANUAL",
+      "evidence": "Graph SSO hint: . A missing hint does not prove absence of OIDC."
+    },
+    {
+      "rule": "AuthenticationAndClaims",
+      "status": "MANUAL",
+      "evidence": "Test assigned/unassigned users, emitted claims, assertion validation, token lifetime, redirects, and logout in the actual application."
+    },
+    {
+      "rule": "SamlVerificationAndEncryption",
+      "status": "MANUAL",
+      "evidence": "Verify request-signature enforcement, active signing certificate, claim mappings, metadata and encryption requirement against the delivery form. UNKNOWN protocol still requires protocol review."
+    },
+    {
+      "rule": "OperationsAndDocumentation",
+      "status": "MANUAL",
+      "evidence": "Review sign-in/audit logs, Conditional Access, TLS configuration, approval, business/support contacts and delivery form."
+    }
+  ],
+  "appOwnerOrganizationId": "f8cdef31-a31e-4b4a-93e4-5f571e91255a",
+  "publisherName": null,
+  "servicePrincipalType": "Application",
+  "appRoles": null,
+  "oauth2PermissionScopes": [
+    {
+      "id": "7e204991-dcdd-4986-9ff0-d058192184d7",
+      "userConsentDisplayName": "Read policies for the user",
+      "adminConsentDescription": "This policy allows the user to read policies applicable",
+      "value": "UserPolicies.Read",
+      "type": "User",
+      "isEnabled": true,
+      "adminConsentDisplayName": "Read policies for the user",
+      "userConsentDescription": "This policy allows the user to read policies applicable"
+    },
+    {
+      "id": "857ba34d-369c-4a02-89ae-83e98336ec02",
+      "userConsentDisplayName": "This scope allows user to read and write user policies.",
+      "adminConsentDescription": "This scope allows user to read and write user policies.",
+      "value": "UserPolicies.ReadWrite",
+      "type": "User",
+      "isEnabled": true,
+      "adminConsentDisplayName": "This scope allows user to read and write user policies.",
+      "userConsentDescription": "This scope allows user to read and write user policies."
+    }
+  ],
+  "description": null,
+  "homepage": null,
+  "tags": null,
+  "info": {
+    "marketingUrl": null,
+    "supportUrl": null,
+    "termsOfServiceUrl": null,
+    "privacyStatementUrl": null,
+    "logoUrl": null
+  },
+  "registration": null,
+  "applicationPermissionGrants": {
+    "status": "AVAILABLE",
+    "items": [],
+    "reason": null
+  },
+  "delegatedConsentGrants": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "recentSignIns": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "scopeNote": "Catalog observation; apply the supplied SSO requirements only after confirming this is an in-scope production SSO application. Platform/resource apps may legitimately differ."
+}

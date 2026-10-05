@@ -1,0 +1,150 @@
+{
+  "displayName": "Microsoft password reset service",
+  "servicePrincipalId": "8ab1e10c-16b6-4d2a-9fa7-045395ad1c22",
+  "appId": "93625bc8-bfe2-437a-97e0-3d0060024faa",
+  "accountEnabled": true,
+  "protocol": "UNKNOWN",
+  "preferredSingleSignOnMode": null,
+  "status": "FAIL",
+  "registrationAvailable": false,
+  "assignmentRequired": false,
+  "owners": [],
+  "assignments": [],
+  "redirectUris": [],
+  "identifierUris": [
+    null
+  ],
+  "samlEntityIdentifiers": [
+    "93625bc8-bfe2-437a-97e0-3d0060024faa",
+    "https://passwordreset.microsoftonline.com/",
+    "https://passwordreset.microsoftonline.com"
+  ],
+  "samlSettings": null,
+  "loginUrl": null,
+  "logoutUrl": null,
+  "tokenEncryptionKeyId": null,
+  "preferredTokenSigningKeyThumbprint": null,
+  "optionalClaims": null,
+  "implicitGrantSettings": null,
+  "credentials": [],
+  "findings": [
+    {
+      "rule": "AssignmentRequired",
+      "status": "FAIL",
+      "evidence": "Configured value: False"
+    },
+    {
+      "rule": "TwoHumanOwners",
+      "status": "FAIL",
+      "evidence": "Human owners: 0; total owners: 0. Automation owners are preserved."
+    },
+    {
+      "rule": "RedirectUriSecurity",
+      "status": "UNKNOWN",
+      "evidence": "Non-HTTPS/non-localhost URIs: . Native-app custom schemes need separate review."
+    },
+    {
+      "rule": "CredentialDates",
+      "status": "MANUAL",
+      "evidence": "Policy: secrets <=90 days; certificates <=365 days; warning at <=30 days remaining. Retired keys may still be listed."
+    },
+    {
+      "rule": "GroupAssignmentsPreferred",
+      "status": "WARN",
+      "evidence": "Groups: 0; direct users: 0. Nested membership is not evaluated."
+    },
+    {
+      "rule": "ProtocolConfirmation",
+      "status": "MANUAL",
+      "evidence": "Graph SSO hint: . A missing hint does not prove absence of OIDC."
+    },
+    {
+      "rule": "AuthenticationAndClaims",
+      "status": "MANUAL",
+      "evidence": "Test assigned/unassigned users, emitted claims, assertion validation, token lifetime, redirects, and logout in the actual application."
+    },
+    {
+      "rule": "SamlVerificationAndEncryption",
+      "status": "MANUAL",
+      "evidence": "Verify request-signature enforcement, active signing certificate, claim mappings, metadata and encryption requirement against the delivery form. UNKNOWN protocol still requires protocol review."
+    },
+    {
+      "rule": "OperationsAndDocumentation",
+      "status": "MANUAL",
+      "evidence": "Review sign-in/audit logs, Conditional Access, TLS configuration, approval, business/support contacts and delivery form."
+    }
+  ],
+  "appOwnerOrganizationId": "f8cdef31-a31e-4b4a-93e4-5f571e91255a",
+  "publisherName": null,
+  "servicePrincipalType": "Application",
+  "appRoles": [
+    {
+      "value": "PasswordWriteback.RefreshClient.All",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "Allows the app to refresh and recreate on-premises configuration for Microsoft self-service password reset.",
+      "isEnabled": true,
+      "origin": "Application",
+      "id": "fc7e8088-95b5-453e-8bef-b17ecfec5ba3",
+      "displayName": "Read, write and manage self-service password reset writeback configuration"
+    },
+    {
+      "value": "PasswordWriteback.RegisterClientVersion.All",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "Allows the app to register a newer version of on-premises Microsoft Entra Connect Sync Agent.",
+      "isEnabled": true,
+      "origin": "Application",
+      "id": "e006e431-a65b-4f3e-8808-77d29d4c5f1a",
+      "displayName": "Read, write and manage Microsoft Entra Connect Sync Agent"
+    },
+    {
+      "value": "PasswordWriteback.OffboardClient.All",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "Allows the app to uninstall Microsoft Entra Connect Sync Agent and offboard SSPR for the tenant",
+      "isEnabled": true,
+      "origin": "Application",
+      "id": "69201c67-737b-4a20-8f16-e0c8c64e0b0e",
+      "displayName": "Read, write and manage Microsoft Entra Connect Sync Agent"
+    }
+  ],
+  "oauth2PermissionScopes": {
+    "id": "7757dd34-1b17-4123-afba-9bdbeeb48d1a",
+    "userConsentDisplayName": "Directory.AccessAsUser.All",
+    "adminConsentDescription": "Directory.AccessAsUser.All",
+    "value": "Directory.AccessAsUser.All",
+    "type": "User",
+    "isEnabled": true,
+    "adminConsentDisplayName": "Directory.AccessAsUser.All",
+    "userConsentDescription": "Directory.AccessAsUser.All"
+  },
+  "description": null,
+  "homepage": null,
+  "tags": null,
+  "info": {
+    "marketingUrl": null,
+    "supportUrl": null,
+    "termsOfServiceUrl": null,
+    "privacyStatementUrl": null,
+    "logoUrl": null
+  },
+  "registration": null,
+  "applicationPermissionGrants": {
+    "status": "AVAILABLE",
+    "items": [],
+    "reason": null
+  },
+  "delegatedConsentGrants": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "recentSignIns": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "scopeNote": "Catalog observation; apply the supplied SSO requirements only after confirming this is an in-scope production SSO application. Platform/resource apps may legitimately differ."
+}

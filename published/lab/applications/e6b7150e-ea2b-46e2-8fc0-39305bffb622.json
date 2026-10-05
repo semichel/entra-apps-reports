@@ -1,0 +1,198 @@
+{
+  "displayName": "Azure App Configuration",
+  "servicePrincipalId": "e6b7150e-ea2b-46e2-8fc0-39305bffb622",
+  "appId": "35ffadb3-7fc1-497e-b61b-381d28e744cc",
+  "accountEnabled": true,
+  "protocol": "UNKNOWN",
+  "preferredSingleSignOnMode": null,
+  "status": "FAIL",
+  "registrationAvailable": false,
+  "assignmentRequired": false,
+  "owners": [],
+  "assignments": [],
+  "redirectUris": [],
+  "identifierUris": [
+    null
+  ],
+  "samlEntityIdentifiers": [
+    "35ffadb3-7fc1-497e-b61b-381d28e744cc",
+    "https://azconfig.io",
+    "https://appconfig.azure.com"
+  ],
+  "samlSettings": null,
+  "loginUrl": null,
+  "logoutUrl": "https://login.azconfig.io/logout",
+  "tokenEncryptionKeyId": null,
+  "preferredTokenSigningKeyThumbprint": null,
+  "optionalClaims": null,
+  "implicitGrantSettings": null,
+  "credentials": [],
+  "findings": [
+    {
+      "rule": "AssignmentRequired",
+      "status": "FAIL",
+      "evidence": "Configured value: False"
+    },
+    {
+      "rule": "TwoHumanOwners",
+      "status": "FAIL",
+      "evidence": "Human owners: 0; total owners: 0. Automation owners are preserved."
+    },
+    {
+      "rule": "RedirectUriSecurity",
+      "status": "UNKNOWN",
+      "evidence": "Non-HTTPS/non-localhost URIs: . Native-app custom schemes need separate review."
+    },
+    {
+      "rule": "CredentialDates",
+      "status": "MANUAL",
+      "evidence": "Policy: secrets <=90 days; certificates <=365 days; warning at <=30 days remaining. Retired keys may still be listed."
+    },
+    {
+      "rule": "GroupAssignmentsPreferred",
+      "status": "WARN",
+      "evidence": "Groups: 0; direct users: 0. Nested membership is not evaluated."
+    },
+    {
+      "rule": "ProtocolConfirmation",
+      "status": "MANUAL",
+      "evidence": "Graph SSO hint: . A missing hint does not prove absence of OIDC."
+    },
+    {
+      "rule": "AuthenticationAndClaims",
+      "status": "MANUAL",
+      "evidence": "Test assigned/unassigned users, emitted claims, assertion validation, token lifetime, redirects, and logout in the actual application."
+    },
+    {
+      "rule": "SamlVerificationAndEncryption",
+      "status": "MANUAL",
+      "evidence": "Verify request-signature enforcement, active signing certificate, claim mappings, metadata and encryption requirement against the delivery form. UNKNOWN protocol still requires protocol review."
+    },
+    {
+      "rule": "OperationsAndDocumentation",
+      "status": "MANUAL",
+      "evidence": "Review sign-in/audit logs, Conditional Access, TLS configuration, approval, business/support contacts and delivery form."
+    }
+  ],
+  "appOwnerOrganizationId": "f8cdef31-a31e-4b4a-93e4-5f571e91255a",
+  "publisherName": null,
+  "servicePrincipalType": "Application",
+  "appRoles": null,
+  "oauth2PermissionScopes": [
+    {
+      "id": "954b4156-78fb-4d19-94b0-41dc7b763e68",
+      "userConsentDisplayName": "Delete Feature Flags As the Signed-In User",
+      "adminConsentDescription": "Allow the application to delete feature flags on behalf of the signed-in user.",
+      "value": "FeatureFlag.Delete",
+      "type": "User",
+      "isEnabled": true,
+      "adminConsentDisplayName": "Delete Feature Flags",
+      "userConsentDescription": "Allow the application to delete feature flags on your behalf."
+    },
+    {
+      "id": "f3cb665c-6320-4ae2-996d-b58707ade4c3",
+      "userConsentDisplayName": "Write Feature Flags As the Signed-In User",
+      "adminConsentDescription": "Allow the application to write feature flags on behalf of the signed-in user.",
+      "value": "FeatureFlag.Write",
+      "type": "User",
+      "isEnabled": true,
+      "adminConsentDisplayName": "Write Feature Flags",
+      "userConsentDescription": "Allow the application to write feature flags on your behalf."
+    },
+    {
+      "id": "dd4449fe-4788-4656-b3f2-4f066e14478a",
+      "userConsentDisplayName": "Read Feature Flags As the Signed-In User",
+      "adminConsentDescription": "Allow the application to read feature flags on behalf of the signed-in user.",
+      "value": "FeatureFlag.Read",
+      "type": "User",
+      "isEnabled": true,
+      "adminConsentDisplayName": "Read Feature Flags",
+      "userConsentDescription": "Allow the application to read feature flags on your behalf."
+    },
+    {
+      "id": "08eeff12-9b4a-4273-b3d9-ff8a13c32645",
+      "userConsentDisplayName": "Delete Key-Values As the Signed-In User",
+      "adminConsentDescription": "Allow the application to delete key-values on behalf of the signed-in user.",
+      "value": "KeyValue.Delete",
+      "type": "User",
+      "isEnabled": true,
+      "adminConsentDisplayName": "Delete Key-Values",
+      "userConsentDescription": "Allow the application to delete key-values on your behalf."
+    },
+    {
+      "id": "77967a14-4f88-4960-84da-e8f71f761ac2",
+      "userConsentDisplayName": "Write Key-Values As the Signed-In User",
+      "adminConsentDescription": "Allow the application to write key-values on behalf of the signed-in user.",
+      "value": "KeyValue.Write",
+      "type": "User",
+      "isEnabled": true,
+      "adminConsentDisplayName": "Write Key-Values",
+      "userConsentDescription": "Allow the application to write key-values on your behalf."
+    },
+    {
+      "id": "8d17f7f7-030c-4b57-8129-cfb5a16433cd",
+      "userConsentDisplayName": "Read Key-Values As the Signed-In User",
+      "adminConsentDescription": "Allow the application to read key-values on behalf of the signed-in user.",
+      "value": "KeyValue.Read",
+      "type": "User",
+      "isEnabled": true,
+      "adminConsentDisplayName": "Read Key-Values",
+      "userConsentDescription": "Allow the application to read key-values on your behalf."
+    },
+    {
+      "id": "5970d132-a862-421f-9352-8ed18f833d78",
+      "userConsentDisplayName": "Read Snapshots As the Signed-In User",
+      "adminConsentDescription": "Allow the application to read snapshots on behalf of the signed-in user.",
+      "value": "Snapshot.Read",
+      "type": "User",
+      "isEnabled": true,
+      "adminConsentDisplayName": "Read Snapshots",
+      "userConsentDescription": "Allow the application to read snapshots on your behalf."
+    },
+    {
+      "id": "ea601552-5fd3-4792-9dfc-e85be5a6827c",
+      "userConsentDisplayName": "Write Snapshots As the Signed-In User",
+      "adminConsentDescription": "Allow the application to write snapshots on behalf of the signed-in user.",
+      "value": "Snapshot.Write",
+      "type": "User",
+      "isEnabled": true,
+      "adminConsentDisplayName": "Write Snapshots",
+      "userConsentDescription": "Allow the application to write snapshots on your behalf."
+    },
+    {
+      "id": "28bb462a-d940-4cbe-afeb-281756df9af8",
+      "userConsentDisplayName": "Perform snapshot Actions As the Signed-In User",
+      "adminConsentDescription": "Allow the application to perform snapshot actions, such as archive, on behalf of the signed-in user.",
+      "value": "Snapshot.Action",
+      "type": "User",
+      "isEnabled": true,
+      "adminConsentDisplayName": "Perform Snapshot Actions",
+      "userConsentDescription": "Allow the application to perform snapshot actions on your behalf."
+    }
+  ],
+  "description": null,
+  "homepage": null,
+  "tags": null,
+  "info": {
+    "marketingUrl": null,
+    "supportUrl": null,
+    "termsOfServiceUrl": null,
+    "privacyStatementUrl": null,
+    "logoUrl": null
+  },
+  "registration": null,
+  "applicationPermissionGrants": {
+    "status": "AVAILABLE",
+    "items": [],
+    "reason": null
+  },
+  "delegatedConsentGrants": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "recentSignIns": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "scopeNote": "Catalog observation; apply the supplied SSO requirements only after confirming this is an in-scope production SSO application. Platform/resource apps may legitimately differ."
+}

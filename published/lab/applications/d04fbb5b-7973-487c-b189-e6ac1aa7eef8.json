@@ -1,0 +1,229 @@
+{
+  "displayName": "Skype for Business Online",
+  "servicePrincipalId": "d04fbb5b-7973-487c-b189-e6ac1aa7eef8",
+  "appId": "00000004-0000-0ff1-ce00-000000000000",
+  "accountEnabled": false,
+  "protocol": "UNKNOWN",
+  "preferredSingleSignOnMode": null,
+  "status": "FAIL",
+  "registrationAvailable": false,
+  "assignmentRequired": false,
+  "owners": [],
+  "assignments": [],
+  "redirectUris": [],
+  "identifierUris": [
+    null
+  ],
+  "samlEntityIdentifiers": [
+    "00000004-0000-0ff1-ce00-000000000000/*.infra.lync.com",
+    "00000004-0000-0ff1-ce00-000000000000/*.online.lync.com",
+    "00000004-0000-0ff1-ce00-000000000000"
+  ],
+  "samlSettings": null,
+  "loginUrl": null,
+  "logoutUrl": null,
+  "tokenEncryptionKeyId": null,
+  "preferredTokenSigningKeyThumbprint": null,
+  "optionalClaims": null,
+  "implicitGrantSettings": null,
+  "credentials": [],
+  "findings": [
+    {
+      "rule": "AssignmentRequired",
+      "status": "FAIL",
+      "evidence": "Configured value: False"
+    },
+    {
+      "rule": "TwoHumanOwners",
+      "status": "FAIL",
+      "evidence": "Human owners: 0; total owners: 0. Automation owners are preserved."
+    },
+    {
+      "rule": "RedirectUriSecurity",
+      "status": "UNKNOWN",
+      "evidence": "Non-HTTPS/non-localhost URIs: . Native-app custom schemes need separate review."
+    },
+    {
+      "rule": "CredentialDates",
+      "status": "MANUAL",
+      "evidence": "Policy: secrets <=90 days; certificates <=365 days; warning at <=30 days remaining. Retired keys may still be listed."
+    },
+    {
+      "rule": "GroupAssignmentsPreferred",
+      "status": "WARN",
+      "evidence": "Groups: 0; direct users: 0. Nested membership is not evaluated."
+    },
+    {
+      "rule": "ProtocolConfirmation",
+      "status": "MANUAL",
+      "evidence": "Graph SSO hint: . A missing hint does not prove absence of OIDC."
+    },
+    {
+      "rule": "AuthenticationAndClaims",
+      "status": "MANUAL",
+      "evidence": "Test assigned/unassigned users, emitted claims, assertion validation, token lifetime, redirects, and logout in the actual application."
+    },
+    {
+      "rule": "SamlVerificationAndEncryption",
+      "status": "MANUAL",
+      "evidence": "Verify request-signature enforcement, active signing certificate, claim mappings, metadata and encryption requirement against the delivery form. UNKNOWN protocol still requires protocol review."
+    },
+    {
+      "rule": "OperationsAndDocumentation",
+      "status": "MANUAL",
+      "evidence": "Review sign-in/audit logs, Conditional Access, TLS configuration, approval, business/support contacts and delivery form."
+    }
+  ],
+  "appOwnerOrganizationId": "f8cdef31-a31e-4b4a-93e4-5f571e91255a",
+  "publisherName": null,
+  "servicePrincipalType": "Application",
+  "appRoles": [
+    {
+      "value": "Anonymous",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "Allows the app create an on-demand Skype meeting and join guest users into Skype for Business services",
+      "isEnabled": true,
+      "origin": "Application",
+      "id": "b783bde8-ffc2-4f0c-96ce-6e2900b7aa4e",
+      "displayName": "Guest user join services (preview)"
+    },
+    {
+      "value": "Meetings.JoinManage",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "Allows the app to join and manage Skype meetings",
+      "isEnabled": true,
+      "origin": "Application",
+      "id": "e821ef97-a9f6-4c9e-bb6a-29fa0d8f6101",
+      "displayName": "Join and Manage Skype Meetings (preview)"
+    },
+    {
+      "value": "Conversations.Chat",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "Allows the app to send and receive instant messages; and manage instant messaging service scenarios",
+      "isEnabled": true,
+      "origin": "Application",
+      "id": "f7a521bb-ae17-42df-8096-97ebcc8b4edb",
+      "displayName": "Send/Receive Instant Messages (preview)"
+    },
+    {
+      "value": "Conversations.PSTN",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "Allows the app to send and receive voice calls; and manage PSTN service scenarios",
+      "isEnabled": true,
+      "origin": "Application",
+      "id": "30a91c70-863f-4a08-b01c-6c1d78685414",
+      "displayName": "Send/Receive PSTN (preview)"
+    },
+    {
+      "value": "Conversations.AudioVideo",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "Allows the app to send and receive audio and video; and manage audio/video service scenarios",
+      "isEnabled": true,
+      "origin": "Application",
+      "id": "05a4e3e8-cfa6-4934-bb91-b6fc4ce6f340",
+      "displayName": "Send/Receive Audio and Video (preview)"
+    },
+    {
+      "value": "Meetings.ScheduleOnDemand",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "description": "Allows the app to create on-demand Skype meetings (short term expiry)",
+      "isEnabled": true,
+      "origin": "Application",
+      "id": "189125ec-ea35-4135-b00a-e51472464beb",
+      "displayName": "Create on-demand Skype meetings (preview)"
+    }
+  ],
+  "oauth2PermissionScopes": [
+    {
+      "id": "44e84b5a-52a3-4b41-975c-6c960414004a",
+      "userConsentDisplayName": "Initiate conversations and join meetings",
+      "adminConsentDescription": "Allows the app to initiate instant messages, audio, video, and desktop sharing conversations; and join meetings on-behalf of the signed-in user\r\n",
+      "value": "Conversations.Initiate",
+      "type": "User",
+      "isEnabled": false,
+      "adminConsentDisplayName": "Initiate conversations and join meetings",
+      "userConsentDescription": "Allows the app to initiate instant messages, audio, video, and desktop sharing conversations; and join meetings\r\n"
+    },
+    {
+      "id": "d0c8f2ea-8f80-4289-8e78-4bc821cde1bc",
+      "userConsentDisplayName": "Create Skype Meetings",
+      "adminConsentDescription": "Allows the app to create Skype meetings on-behalf of the signed-in user\r\n",
+      "value": "Meetings.ReadWrite",
+      "type": "User",
+      "isEnabled": false,
+      "adminConsentDisplayName": "Create Skype Meetings",
+      "userConsentDescription": "Allows the app to create Skype meetings\r\n"
+    },
+    {
+      "id": "208afe8f-9dfa-4f72-a755-6b810d61f42f",
+      "userConsentDisplayName": "Read and manage user information",
+      "adminConsentDescription": "Allows the app to read and update presence, photo, location, note, call forwarding settings of the signed-in user\r\n",
+      "value": "User.ReadWrite",
+      "type": "User",
+      "isEnabled": false,
+      "adminConsentDisplayName": "Read/write Skype user information (preview)",
+      "userConsentDescription": "Allows the app to read and update your presence, photo, location, note, call forwarding settings\r\n"
+    },
+    {
+      "id": "4d48dea7-b534-4bca-9d76-5f8a7a8edae8",
+      "userConsentDisplayName": "Receive conversation invites",
+      "adminConsentDescription": "Allows the app to receive instant messages, audio, video, and desktop sharing invitations on-behalf of the signed-in user\r\n",
+      "value": "Conversations.Receive",
+      "type": "User",
+      "isEnabled": false,
+      "adminConsentDisplayName": "Receive conversation invites (preview)",
+      "userConsentDescription": "Allows the app to receive instant messages, audio, video, and desktop sharing invitations\r\n"
+    },
+    {
+      "id": "5bdeff8b-73d9-4b8a-9e9b-d44c6105f9b4",
+      "userConsentDisplayName": "Read and manage your Skype contacts and groups",
+      "adminConsentDescription": "Allows the app to read and write Skype user contacts and groups\r\n",
+      "value": "Contacts.ReadWrite",
+      "type": "User",
+      "isEnabled": false,
+      "adminConsentDisplayName": "Read/write Skype user contacts and groups",
+      "userConsentDescription": "Allows the app to read and manage your Skype for Business contacts and groups\r\n"
+    }
+  ],
+  "description": null,
+  "homepage": null,
+  "tags": [
+    "disableAcceptingTenantedPassthroughTokens",
+    "disableRequestingTenantedPassthroughTokens",
+    "disableLegacyUserImpersonationResource"
+  ],
+  "info": {
+    "marketingUrl": null,
+    "supportUrl": null,
+    "termsOfServiceUrl": null,
+    "privacyStatementUrl": null,
+    "logoUrl": null
+  },
+  "registration": null,
+  "applicationPermissionGrants": {
+    "status": "AVAILABLE",
+    "items": [],
+    "reason": null
+  },
+  "delegatedConsentGrants": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "recentSignIns": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "scopeNote": "Catalog observation; apply the supplied SSO requirements only after confirming this is an in-scope production SSO application. Platform/resource apps may legitimately differ."
+}
