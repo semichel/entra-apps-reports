@@ -76,7 +76,7 @@ Extended evidence includes registration owners, federated identity credentials, 
 
 Run **Actions → Entra application report → Run workflow**. Select `snapshot` to render the previously collected real inventory without credentials, `lab` for a fresh tenant read after identity setup, or `demo` for synthetic data. The default is `snapshot`. Every summary clearly identifies its mode and source collection time. Expand applications directly on the Actions Summary page; for the full searchable HTML report, download the artifact and open `report.html`.
 
-The workflow uses a GitHub-hosted Ubuntu runner and uploads HTML, JSON and CSV together with 14-day retention. Each run publishes a native GitHub Actions summary with application details and a link to that run's artifact. It does not commit generated reports. The existing `published/lab/` inventory is a dated reference snapshot. No scheduled tenant runs are enabled. Validation runs on pushes and pull requests without tenant access.
+There is one workflow: **Entra application report**. It runs its checks, generates the report and publishes the summary/artifact on a GitHub-hosted Ubuntu runner. HTML, JSON and CSV artifacts have 14-day retention. It does not commit generated reports. The existing `published/lab/` inventory is a dated reference snapshot. No scheduled tenant runs are enabled.
 
 Live runner access requires an app registration with Microsoft Graph **Application.Read.All** application permission, administrator consent, and a GitHub federated identity credential. No Azure subscription is required. Those tenant resources are not created by the reporting script.
 
