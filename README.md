@@ -4,6 +4,8 @@ Read-only enterprise application configuration reports based on the supplied SSO
 
 Private repository: [semichel/entra-apps-reports](https://github.com/semichel/entra-apps-reports).
 
+**Real lab report:** [download the 5 October 2026 report bundle](https://github.com/semichel/entra-apps-reports/releases/tag/lab-report-2026-10-05), extract it, and open `report.html`. This is live tenant data; the Actions demo artifacts contain synthetic data.
+
 **Test tenant:** MichelAB / `Betancoraleman.onmicrosoft.com`  
 **Tenant ID:** `37dadda4-f2a4-47a8-8482-d40fe1a5aa48`
 
