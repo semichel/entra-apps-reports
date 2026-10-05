@@ -1,0 +1,9 @@
+{
+  "tenantName": "MichelAB",
+  "tenantId": "37dadda4-f2a4-47a8-8482-d40fe1a5aa48",
+  "tenantDomain": "Betancoraleman.onmicrosoft.com",
+  "reportRunnerClientId": null,
+  "githubEnvironment": "lab",
+  "graphPermission": "Application.Read.All",
+  "source": "User-confirmed; also matches C:/jobb/entra-access-iac/config/environments/lab.json"
+}

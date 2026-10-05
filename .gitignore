@@ -1,0 +1,8 @@
+reports/
+*.local.json
+*.log
+*.pfx
+*.pem
+*.key
+.env
+__pycache__/

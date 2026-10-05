@@ -1,0 +1,78 @@
+name: Entra application report
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Use synthetic data or the MichelAB lab
+        type: choice
+        options: [demo, lab]
+        default: demo
+permissions:
+  contents: read
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    environment: lab
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify scripts
+        shell: pwsh
+        run: ./tests/Test-Report.ps1
+      - name: Validate lab settings
+        if: inputs.mode == 'lab'
+        shell: pwsh
+        env:
+          LAB_TENANT_ID: ${{ vars.LAB_TENANT_ID }}
+          LAB_CLIENT_ID: ${{ vars.LAB_CLIENT_ID }}
+        run: |
+          if ($env:LAB_TENANT_ID -ne '37dadda4-f2a4-47a8-8482-d40fe1a5aa48') { throw 'Expected MichelAB lab tenant ID.' }
+          $clientGuid = [guid]::Empty
+          if (-not [guid]::TryParse($env:LAB_CLIENT_ID, [ref]$clientGuid) -or $clientGuid -eq [guid]::Empty) { throw 'Set LAB_CLIENT_ID in the lab environment.' }
+      - name: Federated lab login
+        if: inputs.mode == 'lab'
+        uses: azure/login@v3
+        with:
+          tenant-id: ${{ vars.LAB_TENANT_ID }}
+          client-id: ${{ vars.LAB_CLIENT_ID }}
+          allow-no-subscriptions: true
+      - name: Generate report
+        shell: pwsh
+        env:
+          REPORT_MODE: ${{ inputs.mode }}
+          LAB_TENANT_ID: ${{ vars.LAB_TENANT_ID }}
+          LAB_CLIENT_ID: ${{ vars.LAB_CLIENT_ID }}
+        run: |
+          if ($env:REPORT_MODE -eq 'demo') {
+              ./scripts/Export-EntraAppsReport.ps1 -Demo
+          } else {
+              Install-Module Microsoft.Graph.Authentication -Scope CurrentUser -Repository PSGallery -Force
+              Import-Module Microsoft.Graph.Authentication
+              $tokenText = az account get-access-token --resource https://graph.microsoft.com --query accessToken -o tsv
+              if ($LASTEXITCODE -ne 0 -or -not $tokenText) { throw 'Graph access token acquisition failed.' }
+              Write-Output "::add-mask::$tokenText"
+              $secureToken = ConvertTo-SecureString $tokenText -AsPlainText -Force
+              Connect-MgGraph -AccessToken $secureToken -ContextScope Process -NoWelcome
+              try {
+                  $context = Get-MgContext
+                  if ($context.ClientId -ne $env:LAB_CLIENT_ID) { throw 'Unexpected Graph client ID.' }
+                  ./scripts/Export-EntraAppsReport.ps1 -TenantId $env:LAB_TENANT_ID -UseExistingContext
+              } finally {
+                  Disconnect-MgGraph | Out-Null
+              }
+          }
+      - name: Upload downloadable report
+        uses: actions/upload-artifact@v4
+        with:
+          name: entra-apps-report-${{ inputs.mode }}-${{ github.run_number }}
+          path: reports/latest/
+          retention-days: 14
+          if-no-files-found: error
+      - name: Summary
+        shell: pwsh
+        run: |
+          $report = Get-Content ./reports/latest/report.json -Raw | ConvertFrom-Json
+          "Report mode: $($report.mode); applications: $(@($report.applications).Count). Download the report artifact and open report.html." >> $env:GITHUB_STEP_SUMMARY

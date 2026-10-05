@@ -1,0 +1,205 @@
+Entra ID Application Configuration Guide for SSO
+Article metadata.
+Overview
+
+This guide provides step-by-step instructions for configuring applications in Microsoft Entra ID (formerly Azure AD) to enable Single Sign-On (SSO). You have received an unconfigured application from the IAM team and must complete the configuration steps below. The configuration delivery form included with your application specifies whether to use SAML or OIDC protocol.
+
+Table of Contents
+Configure your application
+
+Configuration Delivery Information
+SAML Configuration Steps
+OIDC Configuration Steps
+User Assignment and Security Setup
+Testing and Validation
+Mandatory Security & Configuration Requirements
+Troubleshooting
+
+
+Configure your application
+Configuration Delivery Information
+You have received the following from the IAM team:
+
+Application name in Entra ID Enterprise Applications
+Configuration delivery form specifying SSO protocol (SAML or OIDC)
+Administrative access to the Applications (with Entra admin account)
+You have cleared the following requirements.
+
+Ensure servers can reach EntraID KB0017242
+You have the correct approval & accreditations in place. 
+
+
+Proceed to the appropriate configuration section below based on your SSO protocol type.
+
+SAML Configuration Steps
+Your configuration delivery form contains SAML configuration details. Many applications provide their own configuration guides for Entra ID integration—we recommend consulting your application's documentation while completing these steps.
+
+Step 1: Navigate to SAML Configuration
+
+Navigate to Entra ID > Enterprise applications > [Your application name] > Single sign-on and select "SAML" from the available options.
+
+Step 2: Enter Basic SAML Configuration
+
+In the "Basic SAML Configuration" section, enter the values from your configuration form: Identifier (Entity ID), Reply URL (Assertion Consumer Service URL), Sign-on URL, and Relay State (if provided). Consult your application's documentation for specific format or requirements for these values.
+
+Step 3: Configure SAML Attributes and Claims
+
+Click "Edit" in the User Attributes & Claims section. The configuration form specifies required claim mappings—map each required claim to the corresponding Entra ID user property. Your application's configuration guide will explain which claims are required and how to map them. We prefer to use UPN as 
+
+Step 4: Download IdP Metadata
+
+Download the IdP metadata XML file from the "SAML Signing Certificate" section: labeled "Federation Metadata XML".
+
+Step 5: Enable SAML verification
+
+In the "SAML Signing Certificate" section, verify the verification certificate hasn't expired and ensure "Require verification certificates" is set. 
+
+If the configuration form indicates encryption is required, enable "Assertion Encryption" and upload the certificate provided under token encryption tab.
+
+Step 6: Provide Configuration to Application
+
+Configure application with metadata in following your application's configuration guide for how to complete their configuration.
+
+OIDC Configuration Steps
+Your configuration delivery form contains OpenID Connect (OIDC) configuration details. Many applications provide their own configuration guides for Entra ID integration—we recommend consulting your application's documentation while completing these steps.
+
+Step 1: Add Web Platform
+
+Navigate to Entra ID > App registrations > [Your application name] > Authentication and click "Add a platform" > Web.
+
+Step 2: Configure Redirect URIs
+
+In the "Redirect URIs" section, enter all URIs from your configuration form including test environment and production URIs. Your application's configuration guide will specify the exact redirect URI format required.
+
+Step 3: Configure Logout URL
+
+Configure "Front-channel logout URL" if specified in your configuration form.
+
+Step 4: Select Token Types
+
+Under "Implicit grant and hybrid flows", select the token types needed: Access tokens (if your application calls APIs or backend services) and ID tokens (required for authentication). Consult your application's documentation for which token types are needed.
+
+Step 5: Add Optional Claims
+
+Go to Token configuration and click "Add optional claim". Select "ID" token type and add the claims specified in your configuration form. Your application's documentation will explain which claims are required.
+
+Step 6: Create Client Secret
+
+Configure secret according to what is supported in the application. You should always use federated authentication when possible, When federated authentication is not supported use certificate. Avoid client secret unless something unless nothing else is supported.  
+
+When using client secret max secret life is 90 days
+
+When using certificate max certificate life time is 365 days
+
+When using federated no rotation is required
+
+Step 7: Provide Configuration to Application
+
+Configure application according to your application's configuration guide for how to complete their configuration.
+
+User Assignment and Security Setup
+These steps MUST be completed for all applications regardless of protocol type. These security configurations cannot be delegated to the application vendor and are your organization's responsibility.
+
+Step 1: IMPORTANT Enable User Assignment Requirement
+
+Navigate to Entra ID > Enterprise applications > [Your application name] > Properties and toggle "User assignment required" to Yes. This ensures only authorized users can access the application.
+
+Step 2: Assign Users and Groups
+
+Go to Users and groups and click "Add user/group". Select the users or security groups that should have access. Use groups for scalability (preferred over individual users) and assign appropriate roles if the application supports them. Note that nested groups are not supported.
+
+If you need your application to be available to all users you can use,  "All SAAB AB Users" note that you need to inform IAM if the application needs to be available from B2B tenants you must inform IAM to configure this in Conditional access. 
+
+Step 3: Designate Application Owners
+
+Go to Owners and add at least 2 owners for continuity and shared responsibility. Do not remove the SPNs that are also assigned as owners. Since this will brake IAM's automations. 
+
+Step 4: Configure Branding (Optional)
+
+Go to Branding & properties and set the Home page URL to your application's URL, upload logo, and set the Publisher domain if using custom domains.
+
+
+
+Testing and Validation
+Before enabling users in production, complete the following testing activities.
+
+Authentication Flow Testing
+
+Successfully authenticate as test users from multiple assigned groups and verify redirect back to application after authentication. Confirm user identity displays correctly in the application and test logout functionality (should redirect to Entra ID or application-specified logout page). Verify appropriate error messages appear for unauthorized/unassigned users.
+
+Token Content Validation
+
+Confirm application's token expiration time is reasonable. typically 1 hour.
+
+Assertion
+
+Verify that application tests assertion according with SAML & OIDC protocol standard's.
+
+User Assignment Testing
+
+Verify all intended users and groups are assigned with correct roles. Test that unassigned users cannot access the application and confirm "User assignment required" is enabled in Properties.
+
+Sign-in Logs Review
+
+Go to Entra ID > Sign-in logs and filter by your application name. Review successful sign-in attempts for test users and verify no error codes appear for legitimate users. Document any unusual patterns or issues found.
+
+
+
+Troubleshooting
+Sign-in Flow Not Completing
+
+If the application does not complete the sign-in flow, verify that the redirect URI matches exactly in both Entra ID and the application (including trailing slashes and case sensitivity). Ensure HTTPS is used in production. The most common cause is a mismatch between the configured redirect URI and the one your application expects.
+
+Invalid_client or Unauthorized client Errors
+
+Verify that your client secret is current and correctly configured. Check that API permissions are properly granted with admin consent and ensure the application hasn't been disabled in Entra ID.
+
+AADSTS65001: User or Admin Has Not Consented Errors
+
+Grant admin consent in API permissions and verify that scopes match the requested permissions. Check for any tenant-level conditional access policies that might be blocking the request.
+
+SAML Token Invalid or Missing (SAML Applications Only)
+
+Validate your SAML configuration against the IdP metadata and check that certificates haven't expired. Synchronize server clocks to eliminate clock skew and review the SAML response in browser developer tools for additional details.
+
+Custom Claims Not Appearing in Token
+
+Add the required claims in Token configuration and configure group claim mapping for group-based access if needed. Verify that the application is requesting the correct scopes that include those claims.
+
+Useful Troubleshooting Resources
+
+Use Microsoft Graph Explorer for testing API calls and JWT.ms for decoding and inspecting tokens. The SAML Tracer browser extension helps with inspecting SAML requests and responses, and Fiddler or Charles Proxy can monitor HTTP traffic. Consult Microsoft's Entra ID Application Management documentation and your application provider's SSO documentation. For persistent issues, engage Microsoft Support or consult community forums like Stack Overflow and Microsoft Q&A.
+
+
+
+Mandatory Security & Configuration Requirements
+These items are REQUIRED for all production SSO applications:
+
+Network & Protocol Security (MUST)
+MUST use HTTPS for all redirect URIs in production. Never use HTTP except for localhost development (127.0.0.1, localhost). Configure in Authentication > Web > Redirect URIs > Use https://. 
+
+Configure appropriate token lifetimes with ID Token at 1 hour (default), Refresh Token at 7-90 days based on security requirements, and Access Token at 1 hour (default). Never set tokens to "Never expires."
+
+Your application should enforce Enforce TLS 1.3 or higher and use valid, trusted TLS certificates that conform with cabforum requirements.
+
+Claims & Attributes (MUST)
+MUST include required user identification claims in all tokens: sub (subject) for unique user identifier, upn (User Principal Name) for internal identification, and oid (Object ID) for Entra ID-specific operations. Configure in Token configuration > Add optional claim > Select required claims.
+
+Include the email claim if your application requires email. Enable email claim in token configuration and ensure email addresses are populated for all users in Token configuration > Add optional claim > Email.
+
+Monitoring & Compliance (MUST)
+Review sign-in activity regularly (minimum weekly) to monitor for failed login attempts, identify suspicious access patterns, and track first-time usage in Monitor & health > Sign-in logs. Enable audit logging for configuration changes to track who modified application settings and maintain compliance documentation, reviewed quarterly in Audit logs.
+
+Configuration Validation (MUST)
+Complete full testing before enabling production access. Test with multiple authorized users from different groups, validate successful authentication and redirect back to application, verify user identity displays correctly in application, test conditional access policies if implemented, verify error messages for unauthorized users, and confirm no errors in Entra ID sign-in logs for legitimate users.
+
+Maintain current application documentation including application purpose, owner, and support contact; assigned users/groups and their roles; IdP configuration details and metadata locations; test and validation results; and a runbook for common SSO issues and troubleshooting steps.
+
+
+
+Documentation Checklist
+After configuration is complete, maintain the following documentation: Application purpose, business owner, and support contact information. Document the SSO protocol type (SAML or OIDC) and related configuration details. Maintain a list of assigned users/groups and their assigned roles. For SAML applications, document the location of the downloaded IdP metadata XML file. For OIDC applications, document the Client ID, Tenant ID, and endpoint URLs with the secret stored separately and securely.
+
+Keep a copy of the configuration delivery form from the IAM team and document test results and dates before production enablement. Maintain application administrator contact information and document any known issues and troubleshooting procedures discovered during testing.
+
+For OIDC applications, document the secret expiration date and establish a rotation schedu
