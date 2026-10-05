@@ -19,6 +19,8 @@ function Get-Str {
     param($Object, [string]$Name)
     $value = Get-Val $Object $Name
     if ($null -eq $value) { return $null }
+    if ($value -is [DateTime]) { return $value.ToUniversalTime().ToString('o') }
+    if ($value -is [DateTimeOffset]) { return $value.ToUniversalTime().ToString('o') }
     return [string]$value
 }
 
@@ -174,7 +176,8 @@ function Export-AppReport {
     if ($rows.Count) { $rows | Export-Csv -LiteralPath (Join-Path $OutputDirectory 'findings.csv') -NoTypeInformation -Encoding utf8 }
     else { Set-Content -LiteralPath (Join-Path $OutputDirectory 'findings.csv') -Value '"Application","AppId","ServicePrincipalId","Rule","Status","Evidence"' }
     . (Join-Path $PSScriptRoot 'Report.Html.ps1')
-    New-FullReportHtml $Report | Set-Content -LiteralPath (Join-Path $OutputDirectory 'report.html') -Encoding utf8
+    python (Join-Path $PSScriptRoot 'render_report.py') --report (Join-Path $OutputDirectory 'report.json') --output (Join-Path $OutputDirectory 'report.html')
+    if ($LASTEXITCODE -ne 0) { throw 'HTML report rendering failed.' }
     Export-DetailCsv $Report $OutputDirectory
 }
 

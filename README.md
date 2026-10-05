@@ -17,7 +17,7 @@ The script rejects other tenants before authentication and verifies the signed-i
 
 ## Start locally
 
-Use PowerShell 7. No Graph module or login is required for the synthetic demo:
+Use PowerShell 7 and Python 3. No Graph module or login is required for the synthetic demo:
 
 ```powershell
 Set-Location C:\jobb\entra-apps-reports
@@ -61,6 +61,8 @@ Each successful run writes:
 | `owners.csv` | Enterprise application owner evidence |
 | `assignments.csv` | Assigned users/groups and role identifiers |
 | `credentials.csv` | Certificate and secret dates, lifetime and expiry findings; no credential values |
+
+The HTML report provides an expiry calendar with expired / 30 / 60 / 90-day states, named enterprise/registration owners, assigned principals, granted application and delegated API permissions, requested-versus-granted permission comparisons, federation and recent sign-ins. Search by application or owner, or filter to expiring credentials and ownership gaps. Raw configuration is available in secondary expandable sections.
 
 By default these are in `reports/latest/`. Use `-OutputDirectory` to select another folder. Runtime output is ignored by Git; the readable live report and evidence are committed under `published/lab/`. Logs use `$env:IACPORTAL_LOG` when set, otherwise a unique temporary log.
 

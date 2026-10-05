@@ -28,6 +28,7 @@ Assert-Report ($null -eq (Get-Val $null 'absent')) 'Null helper failed.'
 Assert-Report ($null -eq (Get-Val @{present = 1} 'absent')) 'Missing hashtable property failed.'
 Assert-Report ($null -eq (Get-Str ([pscustomobject]@{present = 1}) 'absent')) 'Missing object property failed.'
 Assert-Report ((Get-Str ([ordered]@{name = 'lab'}) 'name') -eq 'lab') 'Ordered dictionary failed.'
+Assert-Report ((Get-Str @{date = [DateTimeOffset]::Parse('2026-10-01T13:45:59+02:00')} 'date') -eq '2026-10-01T11:45:59.0000000+00:00') 'Graph dates must preserve UTC ISO format.'
 Assert-Report ((Convert-CsvText '=SUM(1,2)') -eq "'=SUM(1,2)") 'Spreadsheet formulas must be neutralized.'
 $script:RequestedUrls = [System.Collections.Generic.List[string]]::new()
 $pages = @(Invoke-MgGetAll 'https://graph.microsoft.com/v1.0/mock')
