@@ -54,18 +54,16 @@ function Add-ExtendedEvidence {
     Write-Progress -Id 1 -Activity 'Registration owners and federation' -Completed
     $Report['registrations'] = @($registrationIndex.Values)
     $since = [DateTimeOffset]::UtcNow.AddDays(-$LogDays).ToString('yyyy-MM-ddTHH:mm:ssZ')
-    Write-ReportLog ('Loading tenant policies, delegated consent, sign-ins and audits for the last {0} days. Large log collections may take several minutes.' -f $LogDays)
+    Write-ReportLog ('Loading tenant policies, delegated consent and sign-ins for the last {0} days. Large sign-in collections may take several minutes.' -f $LogDays)
     $Report['tenantEvidence'] = [ordered]@{
         lookbackDays = $LogDays; sinceUtc = $since
         conditionalAccessPolicies = Get-OptionalEvidence 'https://graph.microsoft.com/v1.0/identity/conditionalAccess/policies'
         claimsMappingPolicies = Get-OptionalEvidence 'https://graph.microsoft.com/v1.0/policies/claimsMappingPolicies'
         delegatedConsentGrants = Get-OptionalEvidence 'https://graph.microsoft.com/v1.0/oauth2PermissionGrants'
         signIns = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/auditLogs/signIns?`$filter=createdDateTime%20ge%20{0}&`$select=id,createdDateTime,appId,appDisplayName,userId,userPrincipalName,status,conditionalAccessStatus" -f $since)
-        directoryAudits = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/auditLogs/directoryAudits?`$filter=activityDateTime%20ge%20{0}&`$select=id,activityDateTime,activityDisplayName,category,result,initiatedBy,targetResources" -f $since)
     }
     $index = 0
-    $Report['tenantEvidence']['directoryAudits']['items'] = @($Report['tenantEvidence']['directoryAudits']['items'] | ForEach-Object { Convert-AuditEntry $_ })
-    Write-ReportLog ('Tenant evidence collected: {0} consent grants, {1} sign-ins and {2} audit entries. Building lookups once.' -f $Report['tenantEvidence']['delegatedConsentGrants']['items'].Count, $Report['tenantEvidence']['signIns']['items'].Count, $Report['tenantEvidence']['directoryAudits']['items'].Count)
+    Write-ReportLog ('Tenant evidence collected: {0} consent grants and {1} sign-ins. Building lookups once.' -f $Report['tenantEvidence']['delegatedConsentGrants']['items'].Count, $Report['tenantEvidence']['signIns']['items'].Count)
     $consentByPrincipal = Group-EvidenceByKey (Get-Val (Get-Val $Report['tenantEvidence'] 'delegatedConsentGrants') 'items') 'clientId'
     $signInsByApp = Group-EvidenceByKey (Get-Val (Get-Val $Report['tenantEvidence'] 'signIns') 'items') 'appId'
     foreach ($app in @(Get-Val $Report 'applications')) {
@@ -127,17 +125,3 @@ function Set-PermissionName {
     $Grant['permission'] = Get-Str $role 'value'
     $Grant['permissionDisplayName'] = Get-Str $role 'displayName'
 }
-
-#= Audit evidence retains actors and targets, excluding changed property values
-function Convert-AuditEntry {
-    param($Entry)
-    $result = [ordered]@{}
-    foreach ($key in @('id','activityDateTime','activityDisplayName','category','result','initiatedBy')) {
-        $result[$key] = Get-Val $Entry $key
-    }
-    $result['targetResources'] = @((Get-Val $Entry 'targetResources') | ForEach-Object {
-        [ordered]@{ id = Get-Str $_ 'id'; type = Get-Str $_ 'type'; displayName = Get-Str $_ 'displayName' }
-    })
-    return $result
-}
-

@@ -204,7 +204,7 @@ function New-AppReport {
     $findings.Add((New-Finding 'ProtocolConfirmation' 'MANUAL' ("Graph SSO hint: {0}. A missing hint does not prove absence of OIDC." -f $mode)))
     $findings.Add((New-Finding 'AuthenticationAndClaims' 'MANUAL' 'Test assigned/unassigned users, emitted claims, assertion validation, token lifetime, redirects, and logout in the actual application.'))
     $findings.Add((New-Finding 'SamlVerificationAndEncryption' $(if ($protocol -in @('SAML', 'UNKNOWN')) { 'MANUAL' } else { 'NOT_APPLICABLE' }) 'Verify request-signature enforcement, active signing certificate, claim mappings, metadata and encryption requirement against the delivery form. UNKNOWN protocol still requires protocol review.'))
-    $findings.Add((New-Finding 'OperationsAndDocumentation' 'MANUAL' 'Review sign-in/audit logs, Conditional Access, TLS configuration, approval, business/support contacts and delivery form.'))
+    $findings.Add((New-Finding 'OperationsAndDocumentation' 'MANUAL' 'Review sign-in evidence, Conditional Access, TLS configuration, approval, business/support contacts and delivery form.'))
     $statuses = @($findings | ForEach-Object { Get-Str $_ 'status' })
     $overall = if ($statuses -contains 'FAIL') { 'FAIL' } elseif ($statuses -contains 'UNKNOWN') { 'UNKNOWN' } elseif ($statuses -contains 'WARN') { 'WARN' } else { 'MANUAL' }
     return [ordered]@{

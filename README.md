@@ -25,6 +25,8 @@ The inventory includes your organization's and third-party enterprise apps and l
 
 The collector uses Graph GET requests. Credential values and private keys are not exported. Optional evidence failures appear as unavailable. Findings describe configuration observations; authentication and application-side validation remain manual.
 
+Directory audit logs are not collected. `AuditLog.Read.All` is still needed for sign-in evidence. The report is a configuration snapshot with observations; it does not send alerts or monitor changes between runs.
+
 ## Contents
 
 - `config/`: production settings.
