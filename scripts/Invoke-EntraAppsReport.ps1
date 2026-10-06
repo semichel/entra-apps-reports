@@ -20,6 +20,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Report.Common.ps1')
 if ($TenantId -eq [guid]::Empty) { throw 'Supply the intended tenant ID.' }
+Write-Host ('[{0:HH:mm:ss}] Checking Python and Microsoft Graph module.' -f [DateTimeOffset]::Now) -ForegroundColor Cyan
 Get-Command python -ErrorAction Stop | Out-Null
 Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
 $connection = @{
@@ -33,8 +34,11 @@ Write-Host 'Sign in with your own account in the intended tenant.' -ForegroundCo
 Connect-MgGraph @connection
 try {
     $context = Get-MgContext
+    Write-Host ('[{0:HH:mm:ss}] Signed in as {1}. Starting report collection.' -f [DateTimeOffset]::Now, (Get-Str $context 'Account')) -ForegroundColor Green
     if ((Get-Str $context 'AuthType') -ne 'Delegated') { throw 'Manual execution requires delegated user authentication.' }
     & (Join-Path $PSScriptRoot 'Export-EntraAppsReport.ps1') -ConfigPath $ConfigPath -OutputDirectory $OutputDirectory -TenantId $TenantId.ToString() -ClientId (Get-Str $context 'ClientId')
 } finally {
+    Write-Progress -Id 1 -Activity 'Report collection' -Completed
+    Write-Progress -Id 2 -Activity 'Microsoft Graph request' -Completed
     Disconnect-MgGraph | Out-Null
 }

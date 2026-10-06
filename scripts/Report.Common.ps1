@@ -27,8 +27,22 @@ function Get-Str {
 #= Phase logging
 function Write-ReportLog {
     param([string]$Message, [ConsoleColor]$Color = 'Cyan')
-    Write-Host $Message -ForegroundColor $Color
-    Add-Content -LiteralPath $script:LogPath -Value ("{0:o} {1}" -f [DateTimeOffset]::UtcNow, $Message)
+    Write-Host ('[{0:HH:mm:ss}] {1}' -f [DateTimeOffset]::Now, $Message) -ForegroundColor $Color
+    try {
+        Add-Content -LiteralPath $script:LogPath -Value ("{0:o} {1}" -f [DateTimeOffset]::UtcNow, $Message)
+    }
+    catch {
+        Write-Warning 'Could not write the report log. Collection continues; progress is still shown in the console.'
+    }
+}
+
+#= Show the current item within a collection phase
+function Write-CollectionProgress {
+    param([string]$Activity, [int]$Index, [int]$Total, [string]$Name)
+    $percent = if ($Total -gt 0) { [Math]::Max(0, [Math]::Min(100, [int](100 * ($Index - 1) / $Total))) } else { 0 }
+    $status = '{0}/{1}: {2}' -f $Index, $Total, $Name
+    Write-Progress -Id 1 -Activity $Activity -Status $status -PercentComplete $percent
+    Write-ReportLog ('{0} - {1}' -f $Activity, $status)
 }
 
 #= Read Graph with bounded throttling retries
@@ -40,13 +54,20 @@ function Invoke-ReportGet {
     }
     for ($attempt = 0; $attempt -lt 5; $attempt++) {
         try {
+            Write-Progress -Id 2 -Activity 'Microsoft Graph request' -Status ('GET {0} (attempt {1}/5)' -f $parsed.AbsolutePath, ($attempt + 1))
             return Invoke-MgGraphRequest -Method GET -Uri $Uri -OutputType Hashtable
         }
         catch {
             $response = Get-Val $_.Exception 'Response'
             $status = Get-Val $response 'StatusCode'
             if ([int]$status -notin @(429, 503, 504) -or $attempt -eq 4) { throw }
-            Start-Sleep -Seconds ([Math]::Min(30, [Math]::Pow(2, $attempt + 1)))
+            $delay = [Math]::Min(30, [Math]::Pow(2, $attempt + 1))
+            Write-ReportLog ('Graph HTTP {0} at {1}; waiting {2}s before retry {3}/5.' -f [int]$status, $parsed.AbsolutePath, $delay, ($attempt + 2)) Yellow
+            Write-Progress -Id 2 -Activity 'Microsoft Graph request' -Status ('Waiting {0}s before retry: {1}' -f $delay, $parsed.AbsolutePath)
+            Start-Sleep -Seconds $delay
+        }
+        finally {
+            Write-Progress -Id 2 -Activity 'Microsoft Graph request' -Completed
         }
     }
 }
@@ -56,6 +77,8 @@ function Invoke-MgGetAll {
     param([string]$Uri)
     $items = [System.Collections.Generic.List[object]]::new()
     $visited = [System.Collections.Generic.HashSet[string]]::new()
+    $pageNumber = 0
+    $resourcePath = ([uri]$Uri).AbsolutePath
     while ($Uri) {
         if (-not $visited.Add($Uri)) { throw 'Repeated Graph nextLink detected.' }
         $page = Invoke-ReportGet $Uri
@@ -63,6 +86,8 @@ function Invoke-MgGetAll {
             if ($null -ne $item) { $items.Add($item) }
         }
         $Uri = Get-Str $page '@odata.nextLink'
+        $pageNumber++
+        if ($Uri -or $pageNumber -gt 1) { Write-ReportLog ('Graph {0}: page {1}, {2} records collected.' -f $resourcePath, $pageNumber, $items.Count) }
     }
     return $items.ToArray()
 }
@@ -166,6 +191,7 @@ function New-AppReport {
 function Export-AppReport {
     param($Report, [string]$OutputDirectory)
     New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
+    Write-ReportLog 'Writing report.json and findings.csv.'
     $Report | ConvertTo-Json -Depth 40 | Set-Content -LiteralPath (Join-Path $OutputDirectory 'report.json') -Encoding utf8
     $rows = @($Report.applications | ForEach-Object {
         $app = $_
@@ -176,8 +202,10 @@ function Export-AppReport {
     if ($rows.Count) { $rows | Export-Csv -LiteralPath (Join-Path $OutputDirectory 'findings.csv') -NoTypeInformation -Encoding utf8 }
     else { Set-Content -LiteralPath (Join-Path $OutputDirectory 'findings.csv') -Value '"Application","AppId","ServicePrincipalId","Rule","Status","Evidence"' }
     . (Join-Path $PSScriptRoot 'Report.Html.ps1')
+    Write-ReportLog 'Rendering the interactive HTML report with Python.'
     python (Join-Path $PSScriptRoot 'render_report.py') --report (Join-Path $OutputDirectory 'report.json') --output (Join-Path $OutputDirectory 'report.html')
     if ($LASTEXITCODE -ne 0) { throw 'HTML report rendering failed.' }
+    Write-ReportLog 'Exporting detailed evidence CSV files.'
     Export-DetailCsv $Report $OutputDirectory
 }
 

@@ -40,6 +40,8 @@ Follow the URL and code displayed by Microsoft Graph PowerShell using a browser 
 
 ## Open the result
 
+During collection, the console shows timestamps, the current phase and app name with an item counter. A Graph progress line shows the current endpoint, pagination logs show how many records have been collected, and throttling/retries display the wait time. Progress percentages apply to the current app-processing phase, not the total execution time. The log-file location is printed when collection starts; full-tenant log collection can take several minutes.
+
 The full report is `C:\jobb\entra-apps-reports\reports\latest\report.html`. JSON evidence and CSV exports are in the same folder. On a machine with a browser:
 
 ```powershell

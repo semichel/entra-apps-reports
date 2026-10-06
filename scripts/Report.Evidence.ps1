@@ -24,11 +24,15 @@ function Add-ExtendedEvidence {
         $principalIndex[(Get-Str $principal 'id')] = $principal
     }
     $registrationIndex = @{}
+    $index = 0
     foreach ($registration in $registrations) {
+        $index++; Write-CollectionProgress 'Registration owners and federation' $index $registrations.Count (Get-Str $registration 'displayName')
         $registrationIndex[(Get-Str $registration 'appId')] = Get-RegistrationEvidence $registration
     }
+    Write-Progress -Id 1 -Activity 'Registration owners and federation' -Completed
     $Report['registrations'] = @($registrationIndex.Values)
     $since = [DateTimeOffset]::UtcNow.AddDays(-$LogDays).ToString('yyyy-MM-ddTHH:mm:ssZ')
+    Write-ReportLog ('Loading tenant policies, delegated consent, sign-ins and audits for the last {0} days. Large log collections may take several minutes.' -f $LogDays)
     $Report['tenantEvidence'] = [ordered]@{
         lookbackDays = $LogDays; sinceUtc = $since
         conditionalAccessPolicies = Get-OptionalEvidence 'https://graph.microsoft.com/v1.0/identity/conditionalAccess/policies'
@@ -40,9 +44,10 @@ function Add-ExtendedEvidence {
     $index = 0
     $Report['tenantEvidence']['directoryAudits']['items'] = @($Report['tenantEvidence']['directoryAudits']['items'] | ForEach-Object { Convert-AuditEntry $_ })
     foreach ($app in @(Get-Val $Report 'applications')) {
+        $index++; Write-CollectionProgress 'Application permissions and evidence' $index @(Get-Val $Report 'applications').Count (Get-Str $app 'displayName')
         Add-AppEvidence $app $principalIndex $registrationIndex (Get-Val $Report 'tenantEvidence')
-        $index++; if ($index % 25 -eq 0) { Write-ReportLog ("Extended application evidence: {0}/{1}" -f $index, @(Get-Val $Report 'applications').Count) }
     }
+    Write-Progress -Id 1 -Activity 'Application permissions and evidence' -Completed
     $Report['schemaVersion'] = '2.0'
     $Report['evidenceCollectedAtUtc'] = [DateTimeOffset]::UtcNow.ToString('o')
 }
