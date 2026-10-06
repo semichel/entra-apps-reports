@@ -320,3 +320,30 @@ function Export-ReportSummary {
     if ([Text.Encoding]::UTF8.GetByteCount($template) -ge 1MB) { throw 'Summary exceeds the GitHub 1 MiB per-step limit.' }
     [IO.File]::WriteAllText($OutputPath, $template, [Text.UTF8Encoding]::new($false))
 }
+
+#= Flat CSV exports for evidence that administrators need to filter
+function Export-DetailCsv {
+    param($Report, [string]$OutputDirectory)
+    foreach ($kind in @('owners','assignments','credentials')) {
+        Export-EvidenceKindCsv $Report $OutputDirectory $kind
+    }
+}
+
+#= Export one evidence collection without formula interpretation
+function Export-EvidenceKindCsv {
+    param($Report, [string]$OutputDirectory, [string]$Kind)
+    $rows = @((Get-Val $Report 'applications') | ForEach-Object {
+        $app = $_
+        @(Get-Val $app $Kind) | Where-Object { $null -ne $_ } | ForEach-Object {
+            $item = $_
+            $row = [ordered]@{ Application = Convert-CsvText (Get-Str $app 'displayName'); AppId = Get-Str $app 'appId'; ServicePrincipalId = Get-Str $app 'servicePrincipalId' }
+            foreach ($key in $item.Keys) {
+                $row[$key] = Convert-CsvText ([string](Get-Val $item $key))
+            }
+            [pscustomobject]$row
+        }
+    })
+    $columns = @($rows | ForEach-Object { $_.PSObject.Properties.Name } | Select-Object -Unique)
+    if ($rows.Count) { $rows | Select-Object -Property $columns | Export-Csv -LiteralPath (Join-Path $OutputDirectory ($Kind + '.csv')) -NoTypeInformation -Encoding utf8 }
+    else { Set-Content -LiteralPath (Join-Path $OutputDirectory ($Kind + '.csv')) -Value '"Application","AppId","ServicePrincipalId"' }
+}

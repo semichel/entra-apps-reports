@@ -26,7 +26,7 @@ function Get-Str {
 
 #= Validate local rendering prerequisites before starting a long Graph collection
 function Assert-ReportPrerequisites {
-    foreach ($relativePath in @('Report.Render.ps1', 'Report.Governance.ps1', 'Report.Rules.ps1', 'templates/report.html', 'templates/check-statistics.js', 'templates/report-filters.js', 'templates/saab-logo.png', 'templates/brand.css')) {
+    foreach ($relativePath in @('Report.Render.ps1', 'Report.Rules.ps1', 'Report.Evidence.ps1', 'templates/report.html', 'templates/check-statistics.js', 'templates/report-filters.js', 'templates/saab-logo.png', 'templates/brand.css')) {
         if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $relativePath) -PathType Leaf)) { throw "Missing report file: $relativePath. Copy the complete project before running; no inventory requests have been made." }
     }
 }
@@ -145,27 +145,16 @@ function Get-CredentialSummary {
     }
 }
 
-#= Credential dates and policy evaluation
+#= Extract credential metadata; configured rules evaluate dates after collection
 function Convert-Credential {
     param($Credential, [string]$Kind, [string]$Source)
     $start = Get-Str $Credential 'startDateTime'
     $end = Get-Str $Credential 'endDateTime'
-    $limit = if ($Kind -eq 'passwordCredentials') { 90 } else { 365 }
-    $status = 'UNKNOWN'
-    $days = $null
-    $lifetime = $null
-    if ($start -and $end) {
-        $startDate = [DateTimeOffset]::Parse($start)
-        $endDate = [DateTimeOffset]::Parse($end)
-        $days = [Math]::Floor(($endDate - [DateTimeOffset]::UtcNow).TotalDays)
-        $lifetime = [Math]::Ceiling(($endDate - $startDate).TotalDays)
-        $status = if ($days -lt 0 -or $lifetime -gt $limit) { 'FAIL' } elseif ($days -le 30) { 'WARN' } else { 'PASS' }
-    }
     return [ordered]@{
         source = $Source; kind = $Kind; keyId = Get-Str $Credential 'keyId'
         displayName = Get-Str $Credential 'displayName'; usage = Get-Str $Credential 'usage'
         startDateTime = $start; endDateTime = $end
-        daysRemaining = $days; lifetimeDays = $lifetime; maximumDays = $limit; status = $status
+        daysRemaining = $null; lifetimeDays = $null; maximumDays = $null; status = 'UNKNOWN'
     }
 }
 
@@ -181,28 +170,11 @@ function New-AppReport {
     $redirects = @(Get-Val $web 'redirectUris') + @(Get-Val (Get-Val $Registration 'spa') 'redirectUris') + @(Get-Val (Get-Val $Registration 'publicClient') 'redirectUris')
     if ($protocol -eq 'SAML') { $redirects = @(Get-Val $Principal 'replyUrls') }
     $redirects = @($redirects | Where-Object { $null -ne $_ } | Select-Object -Unique)
-    $badUrls = @($redirects | Where-Object {
-        $url = $null
-        -not [uri]::TryCreate([string]$_, [UriKind]::Absolute, [ref]$url) -or
-        ($url.Scheme -ne 'https' -and -not ($url.Scheme -eq 'http' -and $url.Host -in @('localhost', '127.0.0.1', '[::1]')))
-    })
-    $findings = [System.Collections.Generic.List[object]]::new()
     $assignmentRequired = Get-Val $Principal 'appRoleAssignmentRequired'
-    $assignmentStatus = if ($null -eq $assignmentRequired) { 'UNKNOWN' } elseif ($assignmentRequired -eq $true) { 'PASS' } else { 'FAIL' }
-    $findings.Add((New-Finding 'AssignmentRequired' $assignmentStatus ("Configured value: {0}" -f $assignmentRequired)))
-    $urlStatus = if ($badUrls.Count -gt 0) { 'FAIL' } elseif ($redirects.Count -eq 0) { 'UNKNOWN' } else { 'PASS' }
-    $findings.Add((New-Finding 'RedirectUriSecurity' $urlStatus ("Non-HTTPS/non-localhost URIs: {0}. Native-app custom schemes need separate review." -f ($badUrls -join ', '))))
-    $credentialStatus = if (@($credentials | Where-Object { (Get-Str $_ 'status') -eq 'FAIL' }).Count) { 'FAIL' } elseif (@($credentials | Where-Object { (Get-Str $_ 'status') -eq 'UNKNOWN' }).Count) { 'UNKNOWN' } elseif (@($credentials | Where-Object { (Get-Str $_ 'status') -eq 'WARN' }).Count) { 'WARN' } elseif ($credentials.Count) { 'PASS' } else { 'NOT_APPLICABLE' }
-    $findings.Add((New-Finding 'CredentialDates' $credentialStatus 'Policy: secrets <=90 days; certificates <=365 days; warning at <=30 days remaining. Retired keys may still be listed.'))
-    $groups = @($assignmentList | Where-Object { (Get-Str $_ 'principalType') -eq 'Group' })
-    $users = @($assignmentList | Where-Object { (Get-Str $_ 'principalType') -eq 'User' })
-    $findings.Add((New-Finding 'GroupAssignmentsPreferred' $(if ($groups.Count) { 'PASS' } else { 'WARN' }) ("Groups: {0}; direct users: {1}. Nested membership is not evaluated." -f $groups.Count, $users.Count)))
-    $statuses = @($findings | ForEach-Object { Get-Str $_ 'status' })
-    $overall = if ($statuses -contains 'FAIL') { 'FAIL' } elseif ($statuses -contains 'UNKNOWN') { 'UNKNOWN' } elseif ($statuses -contains 'WARN') { 'WARN' } else { 'PASS' }
     return [ordered]@{
         displayName = Get-Str $Principal 'displayName'; servicePrincipalId = Get-Str $Principal 'id'
         appId = Get-Str $Principal 'appId'; accountEnabled = Get-Val $Principal 'accountEnabled'
-        protocol = $protocol; preferredSingleSignOnMode = $mode; status = $overall
+        protocol = $protocol; preferredSingleSignOnMode = $mode; status = 'UNKNOWN'
         registrationAvailable = ($null -ne $Registration); assignmentRequired = $assignmentRequired
         owners = $ownerList; assignments = $assignmentList; redirectUris = $redirects
         identifierUris = @(Get-Val $Registration 'identifierUris')
@@ -213,7 +185,7 @@ function New-AppReport {
         preferredTokenSigningKeyThumbprint = Get-Str $Principal 'preferredTokenSigningKeyThumbprint'
         optionalClaims = Get-Val $Registration 'optionalClaims'
         implicitGrantSettings = Get-Val $web 'implicitGrantSettings'
-        credentials = $credentials; findings = $findings.ToArray()
+        credentials = $credentials; findings = @()
     }
 }
 
@@ -232,7 +204,7 @@ function Export-AppReport {
     })
     if ($rows.Count) { $rows | Export-Csv -LiteralPath (Join-Path $OutputDirectory 'findings.csv') -NoTypeInformation -Encoding utf8 }
     else { Set-Content -LiteralPath (Join-Path $OutputDirectory 'findings.csv') -Value '"Application","AppId","ServicePrincipalId","Rule","Status","Evidence"' }
-    . (Join-Path $PSScriptRoot 'Report.Html.ps1')
+
     . (Join-Path $PSScriptRoot 'Report.Render.ps1')
     Write-ReportLog 'Rendering the interactive HTML report with PowerShell.'
     Export-ReportHtml $Report (Join-Path $OutputDirectory 'report.html')
@@ -260,5 +232,30 @@ function Convert-CsvText {
     return $Value
 }
 
+#= Validate report settings and the reader IDs supplied locally or by GitHub secrets
+function Read-ReportDeployment {
+    param(
+        [string]$Path,
+        [string]$TenantId = $env:AZURE_TENANT_ID,
+        [string]$ClientId = $env:AZURE_CLIENT_ID
+    )
+    $config = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -AsHashtable
+    $config['ruleConfiguration'] = Get-ReportRuleConfiguration $config
+    $config['tenantId'] = $TenantId
+    $config['clientId'] = $ClientId
+    foreach ($field in @('tenantId', 'clientId')) {
+        $parsed = [guid]::Empty
+        if (-not [guid]::TryParse((Get-Str $config $field), [ref]$parsed) -or $parsed -eq [guid]::Empty) { throw "Supply valid TenantId and ClientId parameters, or AZURE_TENANT_ID and AZURE_CLIENT_ID environment values ($field is missing or invalid)." }
+    }
+    if ([string]::IsNullOrWhiteSpace((Get-Str $config 'tenantDisplayName'))) { throw 'Fill tenantDisplayName with the production tenant name.' }
+    return $config
+}
+
+#= Match the reader identity before making any production inventory request
+function Assert-ReportDeploymentContext {
+    param($Context, [System.Collections.IDictionary]$Config)
+    if ((Get-Str $Context 'TenantId') -ne (Get-Str $Config 'tenantId') -or (Get-Str $Context 'Environment') -ne 'Global') { throw 'Graph tenant/cloud does not match production configuration. No Graph requests made.' }
+    if ((Get-Str $Context 'ClientId') -ne (Get-Str $Config 'clientId')) { throw 'Graph client does not match the configured production reader. No Graph requests made.' }
+}
+
 . (Join-Path $PSScriptRoot 'Report.Rules.ps1')
-. (Join-Path $PSScriptRoot 'Report.Governance.ps1')
