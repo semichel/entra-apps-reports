@@ -25,7 +25,7 @@ Assert-ReportPrerequisites
 Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
 $connection = @{
     TenantId = $TenantId.ToString()
-    Scopes = @('Application.Read.All', 'Directory.Read.All', 'Policy.Read.All', 'AuditLog.Read.All')
+    Scopes = @('Application.Read.All', 'Directory.Read.All', 'Policy.Read.All')
     ContextScope = 'Process'
     NoWelcome = $true
 }

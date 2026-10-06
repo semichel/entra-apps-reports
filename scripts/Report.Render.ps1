@@ -132,14 +132,6 @@ function Get-ReportAppDetails {
     $empty = if ((Get-Str $federation 'status') -eq 'AVAILABLE') { 'No federation records.' } else { 'Federation evidence unavailable or registration belongs to another tenant.' }
     [void]$text.Append((New-ReportSection 'Federated credentials' @('Name','Issuer','Subject','Audiences') $rows $empty))
     $rows.Clear()
-    $signins = Get-Val $App 'recentSignIns'
-    @((Get-Val $signins 'items')) | Where-Object { $null -ne $_ } | ForEach-Object {
-        $user = Get-Str $_ 'userPrincipalName'; if (-not $user) { $user = Get-Str $_ 'userId' }
-        $rows.Add(@((Format-ReportDate (Get-Val $_ 'createdDateTime')), $user, (Get-Val (Get-Val $_ 'status') 'errorCode'), (Get-Val (Get-Val $_ 'status') 'failureReason'), (Get-Val $_ 'conditionalAccessStatus')))
-    }
-    $empty = if ((Get-Str $signins 'status') -eq 'AVAILABLE') { 'No sign-ins in the collected window.' } else { 'Sign-in evidence unavailable.' }
-    [void]$text.Append((New-ReportSection 'Recent sign-ins' @('UTC time','User','Error code','Failure reason','Conditional Access') $rows $empty))
-    $rows.Clear()
     $icons = @{ PASS = '✅'; WARN = '⚠'; FAIL = '❌'; UNKNOWN = '❔'; MANUAL = '🔍'; NOT_APPLICABLE = '—' }
     @((Get-Val $App 'findings')) | Where-Object { $null -ne $_ } | ForEach-Object { $status = Get-Str $_ 'status'; $rows.Add(@((Get-Val $_ 'rule'), ((Get-Val $icons $status) + ' ' + $status), (Get-Val $_ 'evidence'))) }
     [void]$text.Append((New-ReportSection 'Policy findings and manual validation' @('Check','Observation','Evidence / next action') $rows))
@@ -196,7 +188,7 @@ function Get-ReportResults {
     $rows.Clear()
     @((Get-Val (Get-Val $tenant 'conditionalAccessPolicies') 'items')) | Where-Object { $null -ne $_ } | ForEach-Object { $rows.Add(@((Get-Val $_ 'displayName'), (Get-Val $_ 'state'), (Get-Val $_ 'id'))) }
     $coverage += New-ReportSection 'Conditional Access policies' @('Policy','State','Policy ID') $rows
-    $tests.Add((New-ReportEntry ($tests.Count + 1) 'Tenant evidence and report scope' 'Investigate' 'Tenant evidence' @($mode,'Report scope') ($scope + $coverage) ($scope + "`n### Complete tenant policies, consent and log evidence`n" + (Convert-ReportEvidence $tenant))))
+    $tests.Add((New-ReportEntry ($tests.Count + 1) 'Tenant evidence and report scope' 'Investigate' 'Tenant evidence' @($mode,'Report scope') ($scope + $coverage) ($scope + "`n### Complete tenant policies and consent evidence`n" + (Convert-ReportEvidence $tenant))))
     $blocks = [Collections.Generic.List[object]]::new()
     $tests | Group-Object Block | Sort-Object Name | ForEach-Object {
         $group = $_

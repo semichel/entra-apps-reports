@@ -35,10 +35,9 @@ function Group-EvidenceByKey {
 function Add-ExtendedEvidence {
     param(
         [System.Collections.IDictionary]$Report,
-        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Registrations,
-        [int]$LogDays = 7
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Registrations
     )
-    Write-ReportLog 'Collecting app registration, consent, policy and recent log evidence.'
+    Write-ReportLog 'Collecting app registration, consent and policy evidence.'
     Write-ReportLog ('Reusing {0} registrations from the initial inventory; no second registration download.' -f $Registrations.Count)
     $principals = @(Invoke-MgGetAll 'https://graph.microsoft.com/v1.0/servicePrincipals?$select=id,appId,displayName,appOwnerOrganizationId,publisherName,servicePrincipalType,appRoles,oauth2PermissionScopes,description,homepage,tags,info')
     $principalIndex = @{}
@@ -53,22 +52,18 @@ function Add-ExtendedEvidence {
     }
     Write-Progress -Id 1 -Activity 'Registration owners and federation' -Completed
     $Report['registrations'] = @($registrationIndex.Values)
-    $since = [DateTimeOffset]::UtcNow.AddDays(-$LogDays).ToString('yyyy-MM-ddTHH:mm:ssZ')
-    Write-ReportLog ('Loading tenant policies, delegated consent and sign-ins for the last {0} days. Large sign-in collections may take several minutes.' -f $LogDays)
+    Write-ReportLog 'Loading tenant policies and delegated consent. Sign-in logs are not collected.'
     $Report['tenantEvidence'] = [ordered]@{
-        lookbackDays = $LogDays; sinceUtc = $since
         conditionalAccessPolicies = Get-OptionalEvidence 'https://graph.microsoft.com/v1.0/identity/conditionalAccess/policies'
         claimsMappingPolicies = Get-OptionalEvidence 'https://graph.microsoft.com/v1.0/policies/claimsMappingPolicies'
         delegatedConsentGrants = Get-OptionalEvidence 'https://graph.microsoft.com/v1.0/oauth2PermissionGrants'
-        signIns = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/auditLogs/signIns?`$filter=createdDateTime%20ge%20{0}&`$select=id,createdDateTime,appId,appDisplayName,userId,userPrincipalName,status,conditionalAccessStatus" -f $since)
     }
     $index = 0
-    Write-ReportLog ('Tenant evidence collected: {0} consent grants and {1} sign-ins. Building lookups once.' -f $Report['tenantEvidence']['delegatedConsentGrants']['items'].Count, $Report['tenantEvidence']['signIns']['items'].Count)
+    Write-ReportLog ('Tenant evidence collected: {0} consent grants. Building lookup once.' -f $Report['tenantEvidence']['delegatedConsentGrants']['items'].Count)
     $consentByPrincipal = Group-EvidenceByKey (Get-Val (Get-Val $Report['tenantEvidence'] 'delegatedConsentGrants') 'items') 'clientId'
-    $signInsByApp = Group-EvidenceByKey (Get-Val (Get-Val $Report['tenantEvidence'] 'signIns') 'items') 'appId'
     foreach ($app in @(Get-Val $Report 'applications')) {
         $index++; Write-CollectionProgress 'Application permissions and evidence' $index @(Get-Val $Report 'applications').Count (Get-Str $app 'displayName')
-        Add-AppEvidence $app $principalIndex $registrationIndex (Get-Val $Report 'tenantEvidence') $consentByPrincipal $signInsByApp
+        Add-AppEvidence $app $principalIndex $registrationIndex (Get-Val $Report 'tenantEvidence') $consentByPrincipal
     }
     Write-Progress -Id 1 -Activity 'Application permissions and evidence' -Completed
     $Report['schemaVersion'] = '2.0'
@@ -92,7 +87,7 @@ function Get-RegistrationEvidence {
 
 #= Enrich an application with permissions and tenant-policy evidence
 function Add-AppEvidence {
-    param([System.Collections.IDictionary]$App, $PrincipalIndex, $RegistrationIndex, $TenantEvidence, $ConsentByPrincipal, $SignInsByApp)
+    param([System.Collections.IDictionary]$App, $PrincipalIndex, $RegistrationIndex, $TenantEvidence, $ConsentByPrincipal)
     $id = Get-Str $App 'servicePrincipalId'
     $appId = Get-Str $App 'appId'
     $principal = Get-Val $PrincipalIndex $id
@@ -102,7 +97,6 @@ function Add-AppEvidence {
     $App['registration'] = Get-Val $RegistrationIndex $appId
     $App['applicationPermissionGrants'] = Get-ApplicationPermissionEvidence $id $PrincipalIndex
     $App['delegatedConsentGrants'] = [ordered]@{ status = Get-Str (Get-Val $TenantEvidence 'delegatedConsentGrants') 'status'; items = @((Get-Val $ConsentByPrincipal $id) | Where-Object { $null -ne $_ }) }
-    $App['recentSignIns'] = [ordered]@{ status = Get-Str (Get-Val $TenantEvidence 'signIns') 'status'; items = @((Get-Val $SignInsByApp $appId) | Where-Object { $null -ne $_ }) }
     $App['scopeNote'] = 'Catalog observation; apply the supplied SSO requirements only after confirming this is an in-scope production SSO application. Platform/resource apps may legitimately differ.'
 }
 

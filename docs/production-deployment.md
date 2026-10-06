@@ -27,7 +27,6 @@ Under **API permissions → Add a permission → Microsoft Graph → Application
 | `Application.Read.All` | App registrations, enterprise apps, configuration and federated credentials |
 | `Directory.Read.All` | Owners, assignments and consent evidence |
 | `Policy.Read.All` | Conditional Access and claims-mapping policies |
-| `AuditLog.Read.All` | Sign-in evidence only; directory audit logs are not collected |
 
 The collector uses Graph GET requests. It includes organization/third-party enterprise apps, local app registrations and extended evidence. First-party Microsoft enterprise apps are excluded by owning tenant. Microsoft API metadata is retained as background information for resolving permissions. Some evidence can be unavailable because of permissions, licensing or log retention. No Azure subscription or Graph write permission is needed. See the [Microsoft Graph permission reference](https://learn.microsoft.com/en-us/graph/permissions-reference).
 

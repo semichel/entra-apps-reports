@@ -54,7 +54,7 @@ $report = [ordered]@{
     inventoryScope = [ordered]@{ microsoftOwnedAppsExcluded = $true; excludedMicrosoftAppCount = ($loadedPrincipalCount - $principals.Count); retainedApplicationCount = $principals.Count }
 }
 . (Join-Path $PSScriptRoot 'Report.Evidence.ps1')
-Write-ReportLog 'Phase 3/4: collecting permissions, policies, federation and recent logs.'
+Write-ReportLog 'Phase 3/4: collecting permissions, policies and federation.'
 Add-ExtendedEvidence $report -Registrations $registrations
 Write-ReportLog 'Phase 4/4: writing JSON, rendering HTML and exporting CSV files.'
 Export-AppReport $report $OutputDirectory
