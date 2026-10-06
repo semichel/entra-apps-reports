@@ -1,96 +1,110 @@
 # Production deployment — manual steps
 
-Start with `config/production.json`. The workflow cannot authenticate until the tenant and client IDs are filled in and valid. The single **Entra application report** workflow uses the GitHub environment named **production**. These files prepare the deployment; they do not create tenant resources, grant permissions or run production queries.
+This follows your existing app-registration report setup: start one GitHub Actions job manually, sign in with OIDC, read Microsoft Graph, then publish an Actions Summary and a downloadable report artifact. The workflow is `.github/workflows/report.yml`.
 
-## 1. Choose the repository and confirm the tenant
+To run directly on an on-premises Windows server without GitHub, use [the manual PowerShell guide](onprem-manual-run.md).
 
-Use the private GitHub repository approved to hold your production application inventory, owners and sign-in evidence. Copy this project there if a company repository is required. The reader's federation will trust that exact repository. Check the production tenant's **Overview → Tenant ID** in the Entra admin center.
+## 1. Put the report in your company repository
 
-## 2. Create the production reader app manually
+Use your existing `saabgroup/entra-app_registration_report` repository on `saabgroup.ghe.com`, or another approved private/internal company repository. Copy `scripts/`, `config/`, `docs/`, `README.md`, `.gitignore` and `THIRD-PARTY-NOTICES.txt`, plus `.github/workflows/report.yml`.
 
-In the production tenant, open **App registrations → New registration**.
+When replacing the old report, remove its `.github/workflows/main.yml` so there is only one report workflow. Do not copy `.git/`, the reference ZIP, or previously generated reports. Commit the source files to `main` using your normal company process. Do not run production reports in the personal development repository.
 
-- Name: `Entra Apps Reports - Production Reader`.
-- Supported account types: **Accounts in this organizational directory only**.
-- Redirect URI: leave empty.
+## Test on test-report before replacing main
 
-After registering, copy **Application (client) ID**, not Object ID. You need an administrator authorized to consent to Microsoft Graph application permissions for the next step. No Azure subscription, client secret or certificate is required for this runner.
+The supplied workflow allows only `main` and `test-report`. The run name shows the selected branch. Both branches use the same repository secrets and read the same tenant; a test branch does not select a different tenant.
 
-## 3. Add the read permissions and grant consent
+Do these steps manually in company GitHub and Entra:
 
-Open **API permissions → Add a permission → Microsoft Graph → Application permissions**.
+1. Create `test-report` from the company repository's `main` branch.
+2. Copy the new report's `scripts/`, `config/` and supporting source files into `test-report`. For this existing repository, put the contents of our `.github/workflows/report.yml` into its already registered `.github/workflows/main.yml` **on test-report only**. Keep the existing workflow filename and do not also add `report.yml`. This lets you use the existing manual workflow entry without changing the report on `main`.
+3. Check the reader app's read permissions and existing `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` secrets as described below. Set the report's tenant display name.
+4. In Entra, open the reader app → **Certificates & secrets → Federated credentials → Add credential → Other issuer**. Name it `github-test-report`. Copy the issuer and audience from the working main-branch credential. For a branch-based subject, preserve the complete repository/owner portion, including any immutable IDs, and replace only the ending `refs/heads/main` with `refs/heads/test-report`. Keep the original credential. If your existing subject is customized, have the administrator confirm the exact test-branch subject instead.
+5. Commit the files to `test-report`. Open the existing workflow under **Actions** (its menu name can still be **Run App Registration Script**, from the version on main). Select **Run workflow → test-report**. The run uses the workflow and collector from that branch and generates its own Summary and artifact.
+6. After reviewing the report, merge through your normal company process. Keep one workflow filename; when using `main.yml`, continue using that file instead of adding `report.yml`. You can then remove the test-branch federated credential when testing is finished.
 
-| Permission | Used for |
+If using a new workflow filename instead of the existing one, GitHub requires that workflow with `workflow_dispatch` to exist on the default branch before it can be manually dispatched. See [GitHub's manual workflow instructions](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
+
+## 2. Reuse or create the Entra reader app
+
+In the production tenant, check the Tenant ID in **Entra ID → Overview**. Open the reader app used by your current report and note its **Application (client) ID**. Reuse it if your administrator approves the following read permissions.
+
+If you need a new reader, select **App registrations → New registration**, name it `Entra Apps Reports`, select **Accounts in this organizational directory only**, and leave the redirect URI empty.
+
+Under **API permissions → Add a permission → Microsoft Graph → Application permissions**, verify these permissions and have an authorized administrator grant consent:
+
+| Permission | Report evidence |
 |---|---|
-| `Application.Read.All` | Required: application/service principal inventory, configuration and federated credentials |
-| `Directory.Read.All` | Extended consent/assignment coverage and owner directory information |
-| `Policy.Read.All` | Conditional Access and claims-mapping policy evidence |
+| `Application.Read.All` | App registrations, enterprise apps, configuration and federated credentials |
+| `Directory.Read.All` | Owners, assignments and consent evidence |
+| `Policy.Read.All` | Conditional Access and claims-mapping policies |
 | `AuditLog.Read.All` | Sign-in and directory audit evidence |
 
-For the holistic report, have your authorized administrator review these four application read permissions, then select **Grant admin consent** in the production tenant. Optional evidence can also appear as `UNAVAILABLE` when permissions or licensing prevent a query. The application receives no Graph write permission. See the [Microsoft Graph permission definitions](https://learn.microsoft.com/en-us/graph/permissions-reference).
+The collector uses Graph GET requests. It includes all applications and extended evidence. Some evidence can be unavailable because of permissions, licensing or log retention. No Azure subscription or Graph write permission is needed. See the [Microsoft Graph permission reference](https://learn.microsoft.com/en-us/graph/permissions-reference).
 
-## 4. Fill in the deployment configuration
+## 3. Set the same two GitHub repository secrets
+
+Open **Settings → Secrets and variables → Actions → Repository secrets** in the company repository:
+
+| Secret | Value |
+|---|---|
+| `AZURE_TENANT_ID` | Production Directory/Tenant ID |
+| `AZURE_CLIENT_ID` | Reader app's Application/client ID, not its Object ID |
+
+Keep the existing values if you reuse the same tenant and app. These identifiers select the reader; OIDC federation authenticates it. No client-secret value, certificate or `production` GitHub environment is required.
+
+## 4. Check the federated credential
+
+Open the reader app's **Certificates & secrets → Federated credentials**. If the existing workflow already authenticates from this same repository and `main` branch, reuse its matching credential. Our workflow uses the same two secrets and no GitHub environment.
+
+If you use a new app or repository, add a credential for the actual issuer and subject used by that repository. On `saabgroup.ghe.com`, the default issuer is `https://token.actions.saabgroup.ghe.com`; enterprise customization can change it. The audience for this workflow is `api://AzureADTokenExchange`.
+
+The usual name-based branch subject for the existing repository is:
+
+```text
+repo:saabgroup/entra-app_registration_report:ref:refs/heads/main
+```
+
+Use the **actual** subject from your existing verified credential or GitHub OIDC settings. Newer repositories can include immutable owner/repository IDs, and customized subjects can differ. For a custom issuer or subject, select **Other issuer** in Entra and enter the verified values. Do not use an `environment:production` subject for this workflow. Protect `main` using your normal company change-review process.
+
+See [GitHub's OIDC reference](https://docs.github.com/en/enterprise-cloud%40latest/actions/reference/security/oidc) and [Microsoft's federated credential instructions](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust).
+
+## 5. Set the report label
 
 Edit `config/production.json`:
 
-| Field | Enter |
-|---|---|
-| `tenantId` | Production Directory/Tenant ID |
-| `tenantDisplayName` | Name to show in the report, e.g. `Saab Production` |
-| `clientId` | Application/client ID from step 2 |
-| `githubRepository` | Approved GitHub `owner/repository` |
-
-Identifiers are safe to commit to the private deployment repository; put no tokens, passwords or secret values in the file.
-
-Validate locally in PowerShell 7. This command contacts no service:
-
-```powershell
-Set-Location C:\jobb\entra-apps-reports
-pwsh -NoProfile -File .\scripts\Validate-ProductionConfig.ps1
+```json
+{
+  "tenantDisplayName": "Saab Production"
+}
 ```
 
-It prints the exact issuer, subject, audience and trusted branch for your configuration. Blank or invalid IDs fail with the field name to fill.
+This is only the name displayed in the report. The tenant and client IDs come from the two GitHub secrets. There are no application filters or evidence switches; every run collects the complete report. Artifact retention follows the repository's **Settings → Actions → General → Artifact and log retention** setting.
 
-## 5. Set up the GitHub environment manually
+## 6. Run the report
 
-In your selected repository, open **Settings → Environments → New environment** and name it **production**, exactly.
+Open **Actions → Entra application report → Run workflow**, select `main`, and click **Run workflow**.
 
-Set **Deployment branches and tags** to `main`. Configure required reviewers if supported by your organization's GitHub plan. Protect that branch with your normal change review rules, since changes to the workflow or deployment config control the reader identity. Production tenant/client IDs come from the config; no `PROD_*` secrets or variables are needed.
+The single job uses `runs-on: ubuntu-latest`, just like your existing workflow. GitHub starts one temporary hosted Ubuntu runner for each run; you do not need to install another runner. Your organization must allow that runner and the workflow actions.
 
-## 6. Add the federated credential manually
+The job validates the IDs and repository visibility, installs Az and Microsoft Graph Authentication, uses `azure/login@v2` with OIDC, gets a Graph token through `Get-AzAccessToken`, and calls `scripts/Export-EntraAppsReport.ps1`. The collector verifies the signed-in tenant and client before reading inventory. It then uploads the report and publishes the Summary. Nothing writes to Entra.
 
-Back in the production reader app, open **Certificates & secrets → Federated credentials → Add credential**. Select **GitHub Actions deploying Azure resources** and enter:
+## 7. Open the report
 
-- GitHub organization/owner and repository: match `githubRepository`.
-- Entity type: **Environment**.
-- Environment: **production**.
-- Name: `github-production-report`.
-- Issuer: `https://token.actions.githubusercontent.com`.
-- Subject: `repo:YOUR-OWNER/YOUR-REPOSITORY:environment:production`.
-- Audience: `api://AzureADTokenExchange`.
+Open the completed run's **Summary** for totals, the application list and expandable application details. Under **Artifacts**, download `entra-apps-report-<run number>`, extract it, and open `report.html` for the complete interactive report. The same artifact contains JSON evidence and CSV exports, including owners, assignments, permissions and certificate/secret dates.
 
-Use the exact subject printed by the validation command. This is the environment subject even when the trusted branch is `main`. Microsoft's [federated credential setup](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust) describes the trust relationship, and [GitHub's Azure OIDC guide](https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-azure) describes the workflow exchange.
-
-## 7. Run your first production report
-
-Validate the file, then commit the config and deployment code to `main` in your approved repository. The workflow verifies the repository, branch, tenant and client before reading production.
-
-Open **Actions → Entra application report → Run workflow**. Select `main`, then click **Run workflow**. Approve the environment deployment if a reviewer is configured.
-
-The job runs on one GitHub-hosted Ubuntu runner. It signs in through federation, verifies the Graph context and reads the configured tenant. Rule failures are report observations; they do not fail the runner. Authentication or required inventory failures do fail it. Reports identify the production tenant and collection time.
-
-Open the completed run's **Summary** for the application report. Download `entra-apps-report-<run number>`, extract it and open `report.html` for complete evidence. Large tenants keep the complete application list in the Summary; GitHub's 1 MiB summary limit can move some expanded details to the full artifact. Generated production reports are not committed to Git.
-
+GitHub renders the Summary directly on the run page; the HTML is opened after downloading. Large summaries can move some expanded details to the artifact because of GitHub's 1 MiB Summary limit. Complete evidence stays in the artifact. Generated reports are not committed to the repository.
 
 ## If a step fails
 
-- **Missing GUID:** fill the tenant and client IDs in the config.
-- **Repository or branch mismatch:** compare the actual GitHub repository with the config and select `main`.
-- **Federation mismatch:** compare issuer, audience and the `environment:production` subject exactly.
-- **Client or tenant mismatch:** compare the app's client ID and Directory ID with the config; the report stops before inventory requests.
-- **Graph 403:** check application permissions and production admin consent. A subscriptionless login does not require an Azure role assignment.
-- **UNAVAILABLE evidence:** check the named API's permission/licensing requirements. It is not proof that no records exist.
+- **Missing/invalid ID:** check the two repository secrets.
+- **Branch validation:** select `main` or `test-report`, and ensure Entra has the matching federated credential.
+- **Repository visibility:** use a private or internal company repository.
+- **OIDC/login failure:** compare the actual issuer, subject and audience with the Entra credential, and check Actions policies.
+- **Tenant/client mismatch:** check that both secrets select the intended production reader.
+- **Graph 403 or unavailable evidence:** check consent, the permission named by the failing API and relevant licensing.
+- **No hosted runner available:** ask your GitHub administrator for the approved runner label and update the existing job's `runs-on`; do not add a second workflow.
 
-The workflow runs only when manually started. To revoke the runner's access, your administrator can remove the federated credential or disable the reader app. No automatic schedule is enabled.
+This guide targets the `saabgroup.ghe.com` setup shown by your existing project. A separate on-premises GitHub Enterprise Server requires its own runner and server-supported action versions; `actions/upload-artifact@v4` is not supported there. See [the upload-artifact compatibility notice](https://github.com/actions/upload-artifact#v4---whats-new). Another Git product requires that product's pipeline format.
 
-Reports always include all enterprise applications, all local app registrations and extended evidence. Artifact retention is managed in GitHub **Settings → Actions → General → Artifact and log retention**.
+The workflow runs only when manually started. These source files do not create Entra resources, grant consent or configure company GitHub settings automatically.

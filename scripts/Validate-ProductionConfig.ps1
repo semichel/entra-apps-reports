@@ -1,22 +1,23 @@
 <#
 .SYNOPSIS
-Validates production deployment configuration and prints manual federation settings.
+Validates report settings and production reader IDs without authenticating.
 .DESCRIPTION
 Offline validation only. Does not authenticate or change Entra or GitHub.
 .EXAMPLE
 ./scripts/Validate-ProductionConfig.ps1 -ConfigPath ./config/production.json
 #>
 [CmdletBinding()]
-param([string]$ConfigPath = (Join-Path $PSScriptRoot '../config/production.json'))
+param(
+    [string]$ConfigPath = (Join-Path $PSScriptRoot '../config/production.json'),
+    [string]$TenantId = $env:AZURE_TENANT_ID,
+    [string]$ClientId = $env:AZURE_CLIENT_ID
+)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Report.Common.ps1')
 . (Join-Path $PSScriptRoot 'Report.Deployment.ps1')
-$config = Read-ReportDeployment $ConfigPath
+$config = Read-ReportDeployment $ConfigPath -TenantId $TenantId -ClientId $ClientId
 Write-Host 'Production configuration is valid. No service was contacted.' -ForegroundColor Green
-Write-Host ('Tenant: {0} ({1})' -f (Get-Str $config 'tenantDisplayName'), (Get-Str $config 'tenantId')) -ForegroundColor Cyan
-Write-Host ('Client ID: {0}' -f (Get-Str $config 'clientId')) -ForegroundColor Cyan
-Write-Host 'Federated issuer: https://token.actions.githubusercontent.com' -ForegroundColor Cyan
-Write-Host ('Federated subject: repo:{0}:environment:production' -f (Get-Str $config 'githubRepository')) -ForegroundColor Cyan
-Write-Host 'Federated audience: api://AzureADTokenExchange' -ForegroundColor Cyan
-Write-Host 'Trusted branch: main. All applications and extended evidence are included.' -ForegroundColor Cyan
+Write-Host ('Report tenant label: {0}' -f (Get-Str $config 'tenantDisplayName')) -ForegroundColor Cyan
+Write-Host 'Reader IDs are valid. Federation must match this GitHub host, repository and selected branch; see the deployment guide.' -ForegroundColor Cyan
+Write-Host 'Allowed workflow branches: main and test-report. All applications and extended evidence are included.' -ForegroundColor Cyan

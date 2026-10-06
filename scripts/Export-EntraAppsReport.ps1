@@ -3,21 +3,23 @@
 Exports read-only production Entra application configuration and evidence.
 .DESCRIPTION
 Requires a valid production configuration and an existing matching reader Graph context.
-The GitHub workflow establishes that context using workload identity federation.
+The GitHub workflow uses workload identity federation. Local runs can use delegated user or certificate authentication.
 .EXAMPLE
 ./scripts/Export-EntraAppsReport.ps1 -ConfigPath ./config/production.json
 #>
 [CmdletBinding()]
 param(
     [string]$ConfigPath = (Join-Path $PSScriptRoot '../config/production.json'),
-    [string]$OutputDirectory = (Join-Path $PSScriptRoot '../reports/latest')
+    [string]$OutputDirectory = (Join-Path $PSScriptRoot '../reports/latest'),
+    [string]$TenantId = $env:AZURE_TENANT_ID,
+    [string]$ClientId = $env:AZURE_CLIENT_ID
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Report.Common.ps1')
 . (Join-Path $PSScriptRoot 'Report.Deployment.ps1')
 $script:LogPath = if ($env:IACPORTAL_LOG) { $env:IACPORTAL_LOG } else { Join-Path ([IO.Path]::GetTempPath()) ('entra-apps-report-{0}.log' -f [guid]::NewGuid()) }
-$deployment = Read-ReportDeployment $ConfigPath
+$deployment = Read-ReportDeployment $ConfigPath -TenantId $TenantId -ClientId $ClientId
 $TenantId = Get-Str $deployment 'tenantId'
 Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
 $context = Get-MgContext

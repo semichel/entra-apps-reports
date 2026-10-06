@@ -1,49 +1,53 @@
 name: Entra application report
-run-name: Entra production application report
+run-name: Entra application report - ${{ github.ref_name }}
 on:
   workflow_dispatch:
 permissions:
   contents: read
+  id-token: write
+env:
+  POWERSHELL_TELEMETRY_OPTOUT: 1
+  AZURE_POWERSHELL_TELEMETRY_OPTOUT: 1
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
 jobs:
   report:
     runs-on: ubuntu-latest
-    environment: production
     timeout-minutes: 30
-    permissions:
-      contents: read
-      id-token: write
+    defaults:
+      run:
+        shell: pwsh
     steps:
       - uses: actions/checkout@v4
       - name: Validate production configuration
-        id: settings
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          . ./scripts/Report.Common.ps1
-          . ./scripts/Report.Deployment.ps1
-          $config = Read-ReportDeployment ./config/production.json
-          if ($env:GITHUB_REPOSITORY -ne (Get-Str $config 'githubRepository')) { throw 'Repository does not match production config.' }
-          if ($env:GITHUB_REF -ne 'refs/heads/main') { throw 'Select the main branch.' }
-          $private = gh api "repos/$env:GITHUB_REPOSITORY" --jq '.private'
-          if ($LASTEXITCODE -ne 0 -or $private -ne 'true') { throw 'Production reports require a private repository.' }
-          Add-Content $env:GITHUB_OUTPUT ("tenant_id=" + (Get-Str $config 'tenantId'))
-          Add-Content $env:GITHUB_OUTPUT ("client_id=" + (Get-Str $config 'clientId'))
-      - name: Federated reader login
-        uses: azure/login@v3
-        with:
-          tenant-id: ${{ steps.settings.outputs.tenant_id }}
-          client-id: ${{ steps.settings.outputs.client_id }}
-          allow-no-subscriptions: true
-      - name: Generate report
-        shell: pwsh
+          $ErrorActionPreference = 'Stop'
+          ./scripts/Validate-ProductionConfig.ps1
+          if ($env:GITHUB_REF -notin @('refs/heads/main', 'refs/heads/test-report')) { throw 'Select main or test-report.' }
+          $env:GH_HOST = ([uri]$env:GITHUB_SERVER_URL).Host
+          $visibility = gh api "repos/$env:GITHUB_REPOSITORY" --jq '.visibility'
+          if ($LASTEXITCODE -ne 0 -or $visibility -notin @('private', 'internal')) { throw 'Use a private or internal company repository for production reports.' }
+      - name: Install modules
         run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          Install-Module Az -Scope CurrentUser -Repository PSGallery -Force
           Install-Module Microsoft.Graph.Authentication -Scope CurrentUser -Repository PSGallery -Force
+      - name: Federated reader login
+        uses: azure/login@v2
+        with:
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          allow-no-subscriptions: true
+          enable-AzPSSession: true
+      - name: Generate report
+        run: |
+          $ErrorActionPreference = 'Stop'
           Import-Module Microsoft.Graph.Authentication
-          $tokenText = az account get-access-token --resource https://graph.microsoft.com --query accessToken -o tsv
-          if ($LASTEXITCODE -ne 0 -or -not $tokenText) { throw 'Graph access token acquisition failed.' }
-          Write-Output "::add-mask::$tokenText"
-          Connect-MgGraph -AccessToken (ConvertTo-SecureString $tokenText -AsPlainText -Force) -NoWelcome
+          $token = (Get-AzAccessToken -ResourceTypeName MSGraph -AsSecureString).Token
+          Connect-MgGraph -AccessToken $token -NoWelcome
           try {
               ./scripts/Export-EntraAppsReport.ps1 -ConfigPath ./config/production.json
           } finally {
