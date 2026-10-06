@@ -182,7 +182,6 @@ function Get-ReportResults {
         if (-not $byAppId.ContainsKey([string](Get-Val $registration 'appId'))) { $apps.Add(@{ displayName = Get-Val $registration 'displayName'; appId = Get-Val $registration 'appId'; registration = $registration; credentials = Get-Val $registration 'credentials'; status = Get-Val $registration 'status'; findings = Get-Val $registration 'findings' }) }
     }
     $mode = Get-Str $Report 'mode'; if (-not $mode) { $mode = 'UNKNOWN' }
-    $scope = 'Inventory mode: **' + (Convert-ReportCell $mode) + '**. Collected UTC: **' + (Convert-ReportCell (Format-ReportDate (Get-Val $Report 'generatedAtUtc'))) + '**. Expiry calculations UTC: **' + (Format-ReportDate $Now) + '**. Passed means automatic configuration checks passed. This is collected application evidence. Failed denotes recorded configuration findings, not a completed sign-in or compliance test. Info severity is the inventory entry classification, not an assigned business risk rating. Checks cover the configuration collected from Graph.' + "`n"
     $tests = [Collections.Generic.List[object]]::new()
     $apps | ForEach-Object {
         $app = $_
@@ -194,8 +193,8 @@ function Get-ReportResults {
         }
         $category = if (Get-Val $app 'registration') { 'Local app registrations' } else { 'External / platform applications' }
         $title = Get-Str $app 'displayName'; if (-not $title) { $title = Get-Str $app 'appId' }
-        $content = $scope + (Get-ReportAppDetails $app $Now $byId $byAppId)
-        $tests.Add((New-ReportEntry ($tests.Count + 1) $title $result $category $tags.ToArray() $content ($scope + "`n### Complete application configuration`n" + (Convert-ReportEvidence $app))))
+        $content = Get-ReportAppDetails $app $Now $byId $byAppId
+        $tests.Add((New-ReportEntry ($tests.Count + 1) $title $result $category $tags.ToArray() $content ("`n### Complete application configuration`n" + (Convert-ReportEvidence $app))))
     }
     $tenant = Get-Val $Report 'tenantEvidence'; if ($null -eq $tenant) { $tenant = @{} }
     $rows = [Collections.Generic.List[object]]::new()
@@ -218,7 +217,7 @@ function Get-ReportResults {
     }
     $coverage += New-ReportSection 'Configured app exclusions' @('App ID','Checks','Reason') $rows 'No app exclusions configured.'
     $coverage += "`nDisabled checks: " + (Convert-ReportCell ($configuration.disabledChecks -join ', ')) + "`n"
-    $tests.Add((New-ReportEntry ($tests.Count + 1) 'Tenant evidence and report scope' 'Investigate' 'Tenant evidence' @('Report scope') ($scope + $coverage) ($scope + "`n### Complete tenant policies and consent evidence`n" + (Convert-ReportEvidence $tenant))))
+    $tests.Add((New-ReportEntry ($tests.Count + 1) 'Tenant evidence and report scope' 'Investigate' 'Tenant evidence' @('Report scope') $coverage ("`n### Complete tenant policies and consent evidence`n" + (Convert-ReportEvidence $tenant))))
     $blocks = [Collections.Generic.List[object]]::new()
     $tests | Group-Object Block | Sort-Object Name | ForEach-Object {
         $group = $_
@@ -252,6 +251,7 @@ function Get-ReportResults {
 function Export-ReportHtml {
     param($Report, [string]$OutputPath)
     $template = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'templates/report.html'))
+    $template = $template.Replace('(0,C7.jsx)(D0,{children:`Application evidence`}),', '')
     $logo = 'data:image/png;base64,' + [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $PSScriptRoot 'templates/saab-logo.png')))
     $logoPattern = 'is=`data:image/png;base64,[A-Za-z0-9+/=]+`'
     if ([regex]::Matches($template, $logoPattern).Count -ne 1) { throw 'Report template has no unique logo placeholder.' }
@@ -292,7 +292,7 @@ function Export-ReportSummary {
         $title = Convert-ReportCell $test.Title; $badge = $icons[$test.Result] + ' ' + $test.Result
         [void]$summary.AppendLine('| ' + $test.Id + ': ' + $title + ' | ⚪ Info | ' + $badge + ' |')
         $content = $test.ResultDetail.TestResult; $content = $content.Substring($content.IndexOf("`n### ")).Replace("`n### ", "`n#### ")
-        $details.Add('<details>' + "`n<summary><strong>" + $icons[$test.Result] + ' ' + $test.Id + ': ' + $title + "</strong></summary>`n`n" + $badge + "`n`n#### Overview`n`n**Category:** " + (Convert-ReportCell $test.Block) + "  `n**Tags:** " + (Convert-ReportCell ($test.Tag -join ', ')) + "`n`n#### Application evidence`n`n" + $content + "`n`nFull raw configuration is available in the HTML report artifact.`n`n</details>`n")
+        $details.Add('<details>' + "`n<summary><strong>" + $icons[$test.Result] + ' ' + $test.Id + ': ' + $title + "</strong></summary>`n`n" + $badge + "`n`n#### Overview`n`n**Category:** " + (Convert-ReportCell $test.Block) + "  `n**Tags:** " + (Convert-ReportCell ($test.Tag -join ', ')) + "`n`n" + $content + "`n`nFull raw configuration is available in the HTML report artifact.`n`n</details>`n")
     }
     $template = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'templates/summary.md'))
     $template = $template.Replace('%CheckStatistics%', (New-ReportSection 'Results by check' @('Check','PASS','FAIL','WARN','UNKNOWN','Excluded / disabled','Not applicable') $checkRows 'No configuration checks available.') + "`nEach application is counted once per check. Matching app registrations are included with their enterprise application. Tenant evidence is excluded from these counts.`n")
@@ -300,7 +300,7 @@ function Export-ReportSummary {
         $template = $template.Replace('%' + $key + '%', (Convert-ReportCell $results[$key]))
     }
     $template = $template.Replace('%TestDate%', (Convert-ReportCell $results.ExecutedAt) + ' (UTC)').Replace('%TestSummary%', $summary.ToString().TrimEnd())
-    $intro = '**Tenant ID:** ' + (Convert-ReportCell (Get-Val $Report 'tenantId')) + "`n`n**" + @(@((Get-Val $Report 'applications')) | Where-Object { $null -ne $_ }).Count + ' enterprise applications · ' + @(@((Get-Val $Report 'registrations')) | Where-Object { $null -ne $_ }).Count + " local registrations.** Report totals also include one tenant evidence entry.`n`n**Passed** means automatic configuration checks passed. **Failed** means recorded configuration findings; these are inventory observations. **Info** is the entry classification, not a business risk score.`n`nExpiry calculations UTC: " + (Format-ReportDate $now) + ".`n`n[Download the interactive HTML report and JSON/CSV evidence](" + $ArtifactUrl + "). Extract the artifact and open report.html.`n`n"
+    $intro = '**Tenant ID:** ' + (Convert-ReportCell (Get-Val $Report 'tenantId')) + "`n`n**" + @(@((Get-Val $Report 'applications')) | Where-Object { $null -ne $_ }).Count + ' enterprise applications · ' + @(@((Get-Val $Report 'registrations')) | Where-Object { $null -ne $_ }).Count + " local registrations.** Report totals also include one tenant evidence entry.`n`n[Download the interactive HTML report and JSON/CSV evidence](" + $ArtifactUrl + "). Extract the artifact and open report.html.`n`n"
     $template = $template.Replace('## Application summary', $intro + '## Application summary')
     $budget = 1MB - [Text.Encoding]::UTF8.GetByteCount($template) - 2048
     $included = [Text.StringBuilder]::new(); $count = 0
