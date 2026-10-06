@@ -20,4 +20,4 @@ $config = Read-ReportDeployment $ConfigPath -TenantId $TenantId -ClientId $Clien
 Write-Host 'Production configuration is valid. No service was contacted.' -ForegroundColor Green
 Write-Host ('Report tenant label: {0}' -f (Get-Str $config 'tenantDisplayName')) -ForegroundColor Cyan
 Write-Host 'Reader IDs are valid. Federation must match this GitHub host, repository and selected branch; see the deployment guide.' -ForegroundColor Cyan
-Write-Host 'Allowed workflow branch: main. All applications and extended evidence are included.' -ForegroundColor Cyan
+Write-Host 'Allowed workflow branch: main. Organization/third-party apps and extended evidence are included; Microsoft-owned enterprise apps are excluded.' -ForegroundColor Cyan

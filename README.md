@@ -21,6 +21,8 @@ The Actions Summary contains totals, an application list and expandable details.
 
 The HTML report includes application owners, certificate/secret expiry, assignments, granted and requested API permissions, federation, sign-ins and policy observations. Large inventories retain all evidence in the artifact when GitHub's summary limit restricts expanded details.
 
+The inventory includes your organization's and third-party enterprise apps and local registrations. First-party Microsoft enterprise apps are excluded using their owning tenant IDs, not their names. Microsoft API/resource metadata is still read in the background to resolve granted permissions such as Microsoft Graph roles. Apps with unknown owning tenants are retained rather than guessed away.
+
 The collector uses Graph GET requests. Credential values and private keys are not exported. Optional evidence failures appear as unavailable. Findings describe configuration observations; authentication and application-side validation remain manual.
 
 ## Contents

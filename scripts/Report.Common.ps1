@@ -92,6 +92,36 @@ function Invoke-MgGetAll {
     return $items.ToArray()
 }
 
+#= Read an inventory with owners expanded, retaining a full per-object fallback
+function Get-InventoryWithOwners {
+    param([string]$Uri)
+    try {
+        return Invoke-MgGetAll ($Uri + '&$expand=owners($select=id,displayName)')
+    }
+    catch {
+        $status = Get-Val (Get-Val $_.Exception 'Response') 'StatusCode'
+        if ([int]$status -notin @(400, 501)) { throw }
+        Write-ReportLog 'Graph rejected expanded owners; reading the inventory normally and collecting owners separately.' Yellow
+        return Invoke-MgGetAll $Uri
+    }
+}
+
+#= Accept expanded owners only when the collection is demonstrably below the expansion limit
+function Get-ExpandedOwnerEvidence {
+    param($Object)
+    if ($Object -isnot [System.Collections.IDictionary] -or -not $Object.Contains('owners')) { return $null }
+    $owners = @((Get-Val $Object 'owners') | Where-Object { $null -ne $_ })
+    if ($owners.Count -ge 20 -or (Get-Str $Object 'owners@odata.nextLink')) { return $null }
+    return [ordered]@{ status = 'AVAILABLE'; items = $owners; reason = $null }
+}
+
+#= Exclude first-party Microsoft apps by their owning organization, never their display name
+function Test-MicrosoftOwnedPrincipal {
+    param($Principal)
+    $ownerTenant = Get-Str $Principal 'appOwnerOrganizationId'
+    return $ownerTenant -in @('f8cdef31-a31e-4b4a-93e4-5f571e91255a', '72f988bf-86f1-41af-91ab-2d7cd011db47')
+}
+
 #= Report findings
 function New-Finding {
     param([string]$Rule, [string]$Status, [string]$Evidence)
@@ -214,7 +244,8 @@ function Get-LiveAppReport {
     param($Principal, [System.Collections.IDictionary]$RegistrationByApp)
     $id = Get-Str $Principal 'id'
     $appId = Get-Str $Principal 'appId'
-    $owners = @(Invoke-MgGetAll ("https://graph.microsoft.com/v1.0/servicePrincipals/{0}/owners?`$select=id,displayName" -f $id))
+    $ownerEvidence = Get-ExpandedOwnerEvidence $Principal
+    $owners = @(if ($null -ne $ownerEvidence) { Get-Val $ownerEvidence 'items' } else { Invoke-MgGetAll ("https://graph.microsoft.com/v1.0/servicePrincipals/{0}/owners?`$select=id,displayName" -f $id) })
     $assignments = @(Invoke-MgGetAll ("https://graph.microsoft.com/v1.0/servicePrincipals/{0}/appRoleAssignedTo?`$select=id,principalId,principalDisplayName,principalType,appRoleId,resourceId" -f $id))
     $registration = Get-Val $RegistrationByApp $appId
     return New-AppReport $Principal $registration $owners $assignments
