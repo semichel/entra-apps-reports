@@ -84,7 +84,7 @@ function Get-RegistrationEvidence {
         $result[$key] = Get-Val $Registration $key
     }
     $result['owners'] = Get-ExpandedOwnerEvidence $Registration
-    if ($null -eq $result['owners']) { $result['owners'] = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/applications/{0}/owners?`$select=id,displayName" -f $id) }
+    if ($null -eq $result['owners']) { $result['owners'] = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/applications/{0}/owners?`$select=id,displayName,userPrincipalName" -f $id) }
     $result['credentials'] = @(Get-CredentialSummary $Registration 'AppRegistration')
     $result['federatedIdentityCredentials'] = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/applications/{0}/federatedIdentityCredentials" -f $id)
     return $result

@@ -75,12 +75,14 @@ function Get-ReportAppDetails {
         $rows.Add(@($key, (Get-Val $App $profile[$key])))
     }
     $rows.Add(@('Sign-in audience', (Get-Val $registration 'signInAudience')))
+    $rows.Add(@('Enterprise application description', (Get-Val $App 'description')))
+    $rows.Add(@('App registration description', (Get-Val $registration 'description')))
     [void]$text.Append((New-ReportSection 'Application profile' @('Property','Value') $rows))
     $rows.Clear()
     foreach ($source in @(@{ name = 'Enterprise application'; items = Get-Val $App 'owners' }, @{ name = 'App registration'; items = Get-Val (Get-Val $registration 'owners') 'items' })) {
-        @($source.items) | Where-Object { $null -ne $_ } | ForEach-Object { $rows.Add(@($source.name, (Get-Val $_ 'displayName'), ([string](Get-Val $_ '@odata.type')).Replace('#microsoft.graph.', ''), (Get-Val $_ 'id'))) }
+        @($source.items) | Where-Object { $null -ne $_ } | ForEach-Object { $rows.Add(@($source.name, (Get-Val $_ 'displayName'), (Get-Val $_ 'userPrincipalName'), ([string](Get-Val $_ '@odata.type')).Replace('#microsoft.graph.', ''), (Get-Val $_ 'id'))) }
     }
-    [void]$text.Append((New-ReportSection 'Owners' @('Source','Name','Type','Object ID') $rows 'No owners recorded in the available evidence.'))
+    [void]$text.Append((New-ReportSection 'Owners' @('Source','Name','UPN','Type','Object ID') $rows 'No owners recorded in the available evidence.'))
     if ((Get-Str (Get-Val $registration 'owners') 'status') -eq 'UNAVAILABLE') { [void]$text.AppendLine('App registration owner evidence is unavailable.') }
     $rows.Clear()
     @((Get-Val $App 'credentials')) | Where-Object { $null -ne $_ } | ForEach-Object {
@@ -138,7 +140,8 @@ function Get-ReportAppDetails {
     $empty = if ((Get-Str $signins 'status') -eq 'AVAILABLE') { 'No sign-ins in the collected window.' } else { 'Sign-in evidence unavailable.' }
     [void]$text.Append((New-ReportSection 'Recent sign-ins' @('UTC time','User','Error code','Failure reason','Conditional Access') $rows $empty))
     $rows.Clear()
-    @((Get-Val $App 'findings')) | Where-Object { $null -ne $_ } | ForEach-Object { $rows.Add(@((Get-Val $_ 'rule'), (Get-Val $_ 'status'), (Get-Val $_ 'evidence'))) }
+    $icons = @{ PASS = '✅'; WARN = '⚠'; FAIL = '❌'; UNKNOWN = '❔'; MANUAL = '🔍'; NOT_APPLICABLE = '—' }
+    @((Get-Val $App 'findings')) | Where-Object { $null -ne $_ } | ForEach-Object { $status = Get-Str $_ 'status'; $rows.Add(@((Get-Val $_ 'rule'), ((Get-Val $icons $status) + ' ' + $status), (Get-Val $_ 'evidence'))) }
     [void]$text.Append((New-ReportSection 'Policy findings and manual validation' @('Check','Observation','Evidence / next action') $rows))
     return $text.ToString()
 }
@@ -157,6 +160,7 @@ function New-ReportEntry {
 #= Shared application entries and counters for HTML and Actions
 function Get-ReportResults {
     param($Report, [DateTimeOffset]$Now = [DateTimeOffset]::UtcNow)
+    Update-ReportGovernance $Report
     $apps = [Collections.Generic.List[object]]::new()
     @((Get-Val $Report 'applications')) | Where-Object { $null -ne $_ } | Sort-Object { Get-Str $_ 'displayName' } | ForEach-Object { $apps.Add($_) }
     $byId = @{}; $byAppId = @{}
@@ -164,7 +168,7 @@ function Get-ReportResults {
         $id = Get-Str $app 'servicePrincipalId'; if ($id) { $byId[$id] = $app }; $id = Get-Str $app 'appId'; if ($id) { $byAppId[$id] = $app }
     }
     foreach ($registration in @((Get-Val $Report 'registrations')) | Where-Object { $null -ne $_ }) {
-        if (-not $byAppId.ContainsKey([string](Get-Val $registration 'appId'))) { $apps.Add(@{ displayName = Get-Val $registration 'displayName'; appId = Get-Val $registration 'appId'; registration = $registration; credentials = Get-Val $registration 'credentials'; status = 'MANUAL'; findings = @() }) }
+        if (-not $byAppId.ContainsKey([string](Get-Val $registration 'appId'))) { $apps.Add(@{ displayName = Get-Val $registration 'displayName'; appId = Get-Val $registration 'appId'; registration = $registration; credentials = Get-Val $registration 'credentials'; status = Get-Val $registration 'status'; findings = Get-Val $registration 'findings' }) }
     }
     $mode = Get-Str $Report 'mode'; if (-not $mode) { $mode = 'UNKNOWN' }
     $scope = 'Inventory mode: **' + (Convert-ReportCell $mode) + '**. Collected UTC: **' + (Convert-ReportCell (Format-ReportDate (Get-Val $Report 'generatedAtUtc'))) + '**. Expiry calculations UTC: **' + (Format-ReportDate $Now) + '**. This is collected application evidence. Failed denotes recorded configuration findings, not a completed sign-in or compliance test. Info severity is the inventory entry classification, not an assigned business risk rating. Microsoft/platform/resource applications require an applicability review.' + "`n"
@@ -175,7 +179,8 @@ function Get-ReportResults {
         $protocol = Get-Str $app 'protocol'; if (-not $protocol) { $protocol = 'Protocol unknown' }
         $tags = [Collections.Generic.List[string]]::new(); $tags.Add($mode); $tags.Add('Application inventory'); $tags.Add($protocol)
         if (@(@((Get-Val $app 'credentials')) | Where-Object { $null -ne $_ -and (Get-ReportExpiry $_ $Now).state -eq 'Expired' }).Count) { $tags.Add('Expired credential') }
-        if (@(@((Get-Val $app 'owners')) | Where-Object { $null -ne $_ }).Count -lt 2) { $tags.Add('Enterprise owner gap') }
+        if (@(@((Get-Val $app 'findings')) | Where-Object { (Get-Str $_ 'rule') -in @('EnterpriseAdminOwner','RegistrationAdminOwner') -and (Get-Str $_ 'status') -in @('FAIL','UNKNOWN') }).Count) { $tags.Add('Admin owner needs attention') }
+        if (@(@((Get-Val $app 'findings')) | Where-Object { (Get-Str $_ 'rule') -in @('EnterpriseDescription','RegistrationDescription') -and (Get-Str $_ 'status') -eq 'WARN' }).Count) { $tags.Add('⚠ Missing description') }
         $category = if (Get-Val $app 'registration') { 'Local app registrations' } else { 'External / platform applications' }
         $title = Get-Str $app 'displayName'; if (-not $title) { $title = Get-Str $app 'appId' }
         $content = $scope + (Get-ReportAppDetails $app $Now $byId $byAppId)

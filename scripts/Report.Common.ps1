@@ -26,7 +26,7 @@ function Get-Str {
 
 #= Validate local rendering prerequisites before starting a long Graph collection
 function Assert-ReportPrerequisites {
-    foreach ($relativePath in @('Report.Render.ps1', 'templates/report.html')) {
+    foreach ($relativePath in @('Report.Render.ps1', 'Report.Governance.ps1', 'templates/report.html')) {
         if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $relativePath) -PathType Leaf)) { throw "Missing report file: $relativePath. Copy the complete project before running; no inventory requests have been made." }
     }
 }
@@ -103,7 +103,7 @@ function Invoke-MgGetAll {
 function Get-InventoryWithOwners {
     param([string]$Uri)
     try {
-        return Invoke-MgGetAll ($Uri + '&$expand=owners($select=id,displayName)')
+        return Invoke-MgGetAll ($Uri + '&$expand=owners($select=id,displayName,userPrincipalName)')
     }
     catch {
         $status = Get-Val (Get-Val $_.Exception 'Response') 'StatusCode'
@@ -190,9 +190,6 @@ function New-AppReport {
     $assignmentRequired = Get-Val $Principal 'appRoleAssignmentRequired'
     $assignmentStatus = if ($null -eq $assignmentRequired) { 'UNKNOWN' } elseif ($assignmentRequired -eq $true) { 'PASS' } else { 'FAIL' }
     $findings.Add((New-Finding 'AssignmentRequired' $assignmentStatus ("Configured value: {0}" -f $assignmentRequired)))
-    $humanOwners = @($ownerList | Where-Object { (Get-Str $_ '@odata.type') -eq '#microsoft.graph.user' })
-    $ownerStatus = if ($humanOwners.Count -ge 2) { 'PASS' } else { 'FAIL' }
-    $findings.Add((New-Finding 'TwoHumanOwners' $ownerStatus ("Human owners: {0}; total owners: {1}. Automation owners are preserved." -f $humanOwners.Count, $ownerList.Count)))
     $urlStatus = if ($badUrls.Count -gt 0) { 'FAIL' } elseif ($redirects.Count -eq 0) { 'UNKNOWN' } else { 'PASS' }
     $findings.Add((New-Finding 'RedirectUriSecurity' $urlStatus ("Non-HTTPS/non-localhost URIs: {0}. Native-app custom schemes need separate review." -f ($badUrls -join ', '))))
     $credentialStatus = if (@($credentials | Where-Object { (Get-Str $_ 'status') -eq 'FAIL' }).Count) { 'FAIL' } elseif (@($credentials | Where-Object { (Get-Str $_ 'status') -eq 'UNKNOWN' }).Count) { 'UNKNOWN' } elseif (@($credentials | Where-Object { (Get-Str $_ 'status') -eq 'WARN' }).Count) { 'WARN' } elseif ($credentials.Count) { 'PASS' } else { 'MANUAL' }
@@ -227,6 +224,7 @@ function New-AppReport {
 #= Render escaped HTML, CSV and JSON artifacts
 function Export-AppReport {
     param($Report, [string]$OutputDirectory)
+    Update-ReportGovernance $Report
     New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
     Write-ReportLog 'Writing report.json and findings.csv.'
     $Report | ConvertTo-Json -Depth 40 | Set-Content -LiteralPath (Join-Path $OutputDirectory 'report.json') -Encoding utf8
@@ -252,7 +250,7 @@ function Get-LiveAppReport {
     $id = Get-Str $Principal 'id'
     $appId = Get-Str $Principal 'appId'
     $ownerEvidence = Get-ExpandedOwnerEvidence $Principal
-    $owners = @(if ($null -ne $ownerEvidence) { Get-Val $ownerEvidence 'items' } else { Invoke-MgGetAll ("https://graph.microsoft.com/v1.0/servicePrincipals/{0}/owners?`$select=id,displayName" -f $id) })
+    $owners = @(if ($null -ne $ownerEvidence) { Get-Val $ownerEvidence 'items' } else { Invoke-MgGetAll ("https://graph.microsoft.com/v1.0/servicePrincipals/{0}/owners?`$select=id,displayName,userPrincipalName" -f $id) })
     $assignments = @(Invoke-MgGetAll ("https://graph.microsoft.com/v1.0/servicePrincipals/{0}/appRoleAssignedTo?`$select=id,principalId,principalDisplayName,principalType,appRoleId,resourceId" -f $id))
     $registration = Get-Val $RegistrationByApp $appId
     return New-AppReport $Principal $registration $owners $assignments
@@ -265,3 +263,5 @@ function Convert-CsvText {
     if ($Value -match '^[=+@\-\t\r\n]') { return "'" + $Value }
     return $Value
 }
+
+. (Join-Path $PSScriptRoot 'Report.Governance.ps1')
