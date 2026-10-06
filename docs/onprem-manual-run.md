@@ -4,7 +4,7 @@ Run the report in PowerShell 7 and sign in with your own account as Global Reade
 
 ## Prerequisites
 
-- PowerShell 7 and Python 3.10 or later. The script probes `python`, `python3` and `py -3`, and requires a working interpreter rather than a Windows Store shortcut.
+- PowerShell 7. Python is not required; report generation runs entirely in PowerShell.
 - Access from the machine to Microsoft Entra sign-in and Microsoft Graph over HTTPS.
 - Your Global Reader role must be active in the target tenant. If eligible through PIM, activate it before signing in.
 - The sign-in application needs approved delegated read scopes: `Application.Read.All`, `Directory.Read.All`, `Policy.Read.All` and `AuditLog.Read.All`. Global Reader does not itself grant application consent. If sign-in asks for administrator approval, an authorized administrator must approve these scopes under your organization's policy. Existing application permissions on the GitHub reader app do not supply this delegated consent.
@@ -68,12 +68,12 @@ If collection completed but rendering failed, keep `reports\latest\report.json`.
 .\Render-Report.ps1
 ```
 
-This recreates HTML and CSV from the saved JSON without connecting to Graph. Normal runs check required rendering files and a working Python interpreter before collecting inventory. If Windows reports "Python was not found", install Python using your company's software distribution or correct the existing installation's PATH, then reopen PowerShell. The renderer cannot run with just a Windows Store execution alias.
+This recreates HTML and CSV from the saved JSON without connecting to Graph. Normal runs check required PowerShell rendering scripts and the bundled HTML template before collecting inventory. Copy the complete updated project to your PAW; no Python installation is needed.
 
 - **Administrator approval required:** delegated Graph consent is missing; Global Reader cannot grant that consent.
 - **Interactive/broker sign-in fails:** retry with `-UseDeviceCode` if your organization permits that method.
 - **Tenant mismatch:** use the intended production Tenant ID and select the account in that tenant.
 - **Graph 403/unavailable evidence:** check delegated consent, active role and relevant licensing/API requirements.
-- **Python/module unavailable:** install or distribute prerequisites using your company's approved method.
+- **Graph module unavailable:** install or distribute prerequisites using your company's approved method.
 
 No production authentication or consent is performed automatically while preparing these source files. The GitHub workflow continues to use its own reader app and repository secrets.

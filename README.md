@@ -17,7 +17,7 @@ The workflow runs only from `main` and only when manually started. Replace the e
 
 For a local test with your own Global Reader account, run `./Start-TestRun.ps1` in PowerShell 7 from the project root. It asks for the tenant ID and starts interactive sign-in. The HTML/JSON/CSV report is written locally. Prerequisites and device-code sign-in are described in [the manual PowerShell guide](docs/onprem-manual-run.md).
 
-If collection completed but HTML rendering failed, fix the local Python installation and run `./Render-Report.ps1` to regenerate HTML and CSV from the saved JSON without another Graph collection.
+If collection completed but HTML rendering failed, run `./Render-Report.ps1` to regenerate HTML and CSV from the saved JSON without another Graph collection.
 
 The Actions Summary contains totals, an application list and expandable details. Each run uploads a self-contained HTML report, JSON evidence and CSV files for findings, owners, assignments and credential dates.
 
@@ -37,6 +37,6 @@ Directory audit logs are not collected. `AuditLog.Read.All` is still needed for 
 - `docs/`: manual deployment guide.
 - `.github/workflows/report.yml`: one manually triggered production workflow.
 
-PowerShell 7 and Python 3 are required. The workflow installs Microsoft Graph Authentication and authenticates using GitHub federation. Artifact retention follows the GitHub repository setting. Generated output in `reports/` is ignored by Git.
+PowerShell 7 is required. HTML and Actions summaries are generated directly in PowerShell; Python is not required. The workflow installs Microsoft Graph Authentication and authenticates using GitHub federation. Artifact retention follows the GitHub repository setting. Generated output in `reports/` is ignored by Git.
 
 Attribution for the bundled report interface is embedded in the HTML template and generated report.

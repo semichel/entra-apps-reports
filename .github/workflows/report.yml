@@ -65,4 +65,4 @@ jobs:
         env:
           REPORT_ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
         run: |
-          python scripts/write_action_summary.py --report reports/latest/report.json --artifact-url $env:REPORT_ARTIFACT_URL --output $env:GITHUB_STEP_SUMMARY
+          ./scripts/Write-ActionSummary.ps1 -ReportPath reports/latest/report.json -ArtifactUrl $env:REPORT_ARTIFACT_URL -OutputPath $env:GITHUB_STEP_SUMMARY

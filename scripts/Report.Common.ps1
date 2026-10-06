@@ -24,25 +24,9 @@ function Get-Str {
     return [string]$value
 }
 
-#= Find a working Python interpreter instead of accepting Windows Store aliases
-function Resolve-ReportPython {
-    foreach ($name in @('python', 'python3', 'py')) {
-        $command = Get-Command $name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($null -eq $command) { continue }
-        $prefix = if ($name -eq 'py') { @('-3') } else { @() }
-        try {
-            $probe = & $command.Source @prefix -c "import sys; print('ENTRA_PYTHON_OK' if sys.version_info >= (3, 10) else 'ENTRA_PYTHON_OLD')" 2>&1
-            if ($LASTEXITCODE -eq 0 -and @($probe) -contains 'ENTRA_PYTHON_OK') { return @{ executable = $command.Source; arguments = $prefix } }
-        }
-        catch { }
-    }
-    throw 'No working Python 3.10+ found. Install Python using your company-approved method, then reopen PowerShell. Tried python, python3 and py -3. Inventory has not started when this check runs at startup.'
-}
-
 #= Validate local rendering prerequisites before starting a long Graph collection
 function Assert-ReportPrerequisites {
-    $null = Resolve-ReportPython
-    foreach ($relativePath in @('render_report.py', 'render_html_report.py', 'templates/report.html')) {
+    foreach ($relativePath in @('Report.Render.ps1', 'templates/report.html')) {
         if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $relativePath) -PathType Leaf)) { throw "Missing report file: $relativePath. Copy the complete project before running; no inventory requests have been made." }
     }
 }
@@ -255,12 +239,9 @@ function Export-AppReport {
     if ($rows.Count) { $rows | Export-Csv -LiteralPath (Join-Path $OutputDirectory 'findings.csv') -NoTypeInformation -Encoding utf8 }
     else { Set-Content -LiteralPath (Join-Path $OutputDirectory 'findings.csv') -Value '"Application","AppId","ServicePrincipalId","Rule","Status","Evidence"' }
     . (Join-Path $PSScriptRoot 'Report.Html.ps1')
-    Write-ReportLog 'Rendering the interactive HTML report with Python.'
-    $python = Resolve-ReportPython
-    $pythonArguments = Get-Val $python 'arguments'
-    Write-ReportLog ('Using Python: {0}' -f (Get-Str $python 'executable'))
-    & (Get-Str $python 'executable') @pythonArguments (Join-Path $PSScriptRoot 'render_report.py') --report (Join-Path $OutputDirectory 'report.json') --output (Join-Path $OutputDirectory 'report.html')
-    if ($LASTEXITCODE -ne 0) { throw 'HTML report rendering failed.' }
+    . (Join-Path $PSScriptRoot 'Report.Render.ps1')
+    Write-ReportLog 'Rendering the interactive HTML report with PowerShell.'
+    Export-ReportHtml $Report (Join-Path $OutputDirectory 'report.html')
     Write-ReportLog 'Exporting detailed evidence CSV files.'
     Export-DetailCsv $Report $OutputDirectory
 }
@@ -284,4 +265,3 @@ function Convert-CsvText {
     if ($Value -match '^[=+@\-\t\r\n]') { return "'" + $Value }
     return $Value
 }
-

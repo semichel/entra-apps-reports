@@ -3,7 +3,7 @@
 Runs the complete report locally using your own Microsoft Entra account.
 .DESCRIPTION
 Uses delegated interactive authentication with read-only Graph scopes.
-Requires PowerShell 7, Python 3 and Microsoft.Graph.Authentication.
+Requires PowerShell 7 and Microsoft.Graph.Authentication.
 .EXAMPLE
 ./scripts/Invoke-EntraAppsReport.ps1 -TenantId 'YOUR-PRODUCTION-TENANT-ID'
 .EXAMPLE
@@ -20,7 +20,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Report.Common.ps1')
 if ($TenantId -eq [guid]::Empty) { throw 'Supply the intended tenant ID.' }
-Write-Host ('[{0:HH:mm:ss}] Checking Python and Microsoft Graph module.' -f [DateTimeOffset]::Now) -ForegroundColor Cyan
+Write-Host ('[{0:HH:mm:ss}] Checking report files and Microsoft Graph module.' -f [DateTimeOffset]::Now) -ForegroundColor Cyan
 Assert-ReportPrerequisites
 Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
 $connection = @{
