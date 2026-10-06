@@ -25,15 +25,15 @@ Set `tenantDisplayName` in `config/production.json` to the label you want in the
 
 ```powershell
 Set-Location C:\jobb\entra-apps-reports
-.\scripts\Invoke-EntraAppsReport.ps1 -TenantId 'YOUR-PRODUCTION-TENANT-ID'
+.\Start-TestRun.ps1
 ```
 
-Sign in with your own account and complete MFA as required. The script requests only read scopes, checks delegated authentication, and calls the existing collector with the sign-in application's client ID. The collector verifies the tenant, cloud and client before reading inventory. The session is disconnected when collection finishes or fails.
+Enter the intended tenant ID when prompted, then sign in with your own account and complete MFA as required. You can also supply `-TenantId 'YOUR-PRODUCTION-TENANT-ID'` directly. The script requests only read scopes, checks delegated authentication, and calls the existing collector with the sign-in application's client ID. The collector verifies the tenant, cloud and client before reading inventory. The session is disconnected when collection finishes or fails.
 
 For a remote/headless machine, or if the normal sign-in broker fails, use device-code authentication if permitted by your organization's Conditional Access policies:
 
 ```powershell
-.\scripts\Invoke-EntraAppsReport.ps1 -TenantId 'YOUR-PRODUCTION-TENANT-ID' -UseDeviceCode
+.\Start-TestRun.ps1 -TenantId 'YOUR-PRODUCTION-TENANT-ID' -UseDeviceCode
 ```
 
 Follow the URL and code displayed by Microsoft Graph PowerShell using a browser on your workstation. No password is entered into the script or config file.
@@ -51,7 +51,7 @@ On a server without a desktop, copy the output folder to your workstation and op
 Each successful run replaces the files in `reports\latest`. To retain separate runs:
 
 ```powershell
-.\scripts\Invoke-EntraAppsReport.ps1 -TenantId 'YOUR-PRODUCTION-TENANT-ID' -OutputDirectory C:\Reports\Entra\run-001
+.\Start-TestRun.ps1 -TenantId 'YOUR-PRODUCTION-TENANT-ID' -OutputDirectory C:\Reports\Entra\run-001
 ```
 
 ## Troubleshooting

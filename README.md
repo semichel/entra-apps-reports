@@ -15,7 +15,7 @@ To try the new report before replacing production code, use the `test-report` br
 
 ## Report
 
-For direct execution on an on-premises Windows server with your own Global Reader account, follow [the manual PowerShell guide](docs/onprem-manual-run.md). Run `scripts/Invoke-EntraAppsReport.ps1 -TenantId YOUR-TENANT-ID` to sign in interactively and write the HTML/JSON/CSV report locally.
+For a local test with your own Global Reader account, run `./Start-TestRun.ps1` in PowerShell 7 from the project root. It asks for the tenant ID and starts interactive sign-in. The HTML/JSON/CSV report is written locally. Prerequisites and device-code sign-in are described in [the manual PowerShell guide](docs/onprem-manual-run.md).
 
 The Actions Summary contains totals, an application list and expandable details. Each run uploads a self-contained HTML report, JSON evidence and CSV files for findings, owners, assignments and credential dates.
 
