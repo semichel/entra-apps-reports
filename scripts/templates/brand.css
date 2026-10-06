@@ -1,0 +1,16 @@
+/* Navy, silver and white palette based on the supplied Saab emblem. */
+:root { color-scheme: light dark; }
+body { background: #f1f4f8; color: #172554; }
+[class~="bg-white"] { background-color: #ffffff !important; }
+[class~="bg-gray-50"], [class~="bg-gray-100"] { background-color: #f1f4f8 !important; }
+[class~="text-blue-600"], [class~="text-indigo-600"] { color: #233e73 !important; }
+[class~="bg-blue-600"], [class~="bg-indigo-600"] { background-color: #233e73 !important; }
+[class~="border-gray-200"], [class~="border-gray-300"] { border-color: #c4ccd8 !important; }
+.dark body { background: #080f25; color: #f1f4f8; }
+.dark [class~="dark:bg-black"], .dark [class~="dark:bg-gray-950"] { background-color: #080f25 !important; }
+.dark [class~="dark:bg-gray-900"], .dark [class~="dark:bg-gray-800"], .dark [class~="dark:bg-zinc-900"] { background-color: #142448 !important; }
+.dark [class~="dark:border-gray-800"], .dark [class~="dark:border-gray-700"] { border-color: #526687 !important; }
+.dark [class~="dark:text-gray-400"], .dark [class~="dark:text-gray-500"] { color: #b8c5d9 !important; }
+.dark [class~="dark:text-blue-400"], .dark [class~="dark:text-indigo-400"] { color: #b8cbed !important; }
+.prose { max-width: 100%; min-width: 0; }
+.prose table { display: block; max-width: 100%; overflow-x: auto; }

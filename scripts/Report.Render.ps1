@@ -252,6 +252,11 @@ function Get-ReportResults {
 function Export-ReportHtml {
     param($Report, [string]$OutputPath)
     $template = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'templates/report.html'))
+    $logo = 'data:image/png;base64,' + [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $PSScriptRoot 'templates/saab-logo.png')))
+    $logoPattern = 'is=`data:image/png;base64,[A-Za-z0-9+/=]+`'
+    if ([regex]::Matches($template, $logoPattern).Count -ne 1) { throw 'Report template has no unique logo placeholder.' }
+    $template = [regex]::Replace($template, $logoPattern, 'is=`' + $logo + '`')
+    $template = [regex]::Replace($template, '<link rel="icon"[^>]+>', '<link rel="icon" type="image/png" href="' + $logo + '" />')
     $component = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'templates/check-statistics.js'))
     $anchor = '(0,z.jsx)(uHe,{TestResults:e,selectedStatus:t,onStatusChange:n})'
     if ([regex]::Matches($template, [regex]::Escape($anchor)).Count -ne 1) { throw 'Report template has no unique statistics insertion point.' }
@@ -265,7 +270,8 @@ function Export-ReportHtml {
     $payload = ConvertTo-Json -InputObject (Get-ReportResults $Report) -Depth 100 -Compress -EscapeHandling EscapeHtml
     $payload = $payload.Replace([string][char]0x2028, '\u2028').Replace([string][char]0x2029, '\u2029')
     $output = $template.Substring(0, $last.Index + $last.Length) + $payload + $template.Substring($sentinel.Index + $sentinel.Length)
-    $output = $output.Replace('</head>', '<style>.prose{max-width:100%;min-width:0}.prose table{display:block;max-width:100%;overflow-x:auto}</style></head>')
+    $brandCss = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'templates/brand.css'))
+    $output = $output.Replace('</head>', '<style>' + $brandCss + '</style></head>')
     [IO.File]::WriteAllText($OutputPath, $output, [Text.UTF8Encoding]::new($false))
 }
 
