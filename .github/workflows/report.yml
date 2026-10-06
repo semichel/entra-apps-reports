@@ -25,7 +25,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           ./scripts/Validate-ProductionConfig.ps1
-          if ($env:GITHUB_REF -notin @('refs/heads/main', 'refs/heads/test-report')) { throw 'Select main or test-report.' }
+          if ($env:GITHUB_REF -ne 'refs/heads/main') { throw 'Select the main branch.' }
           $env:GH_HOST = ([uri]$env:GITHUB_SERVER_URL).Host
           $visibility = gh api "repos/$env:GITHUB_REPOSITORY" --jq '.visibility'
           if ($LASTEXITCODE -ne 0 -or $visibility -notin @('private', 'internal')) { throw 'Use a private or internal company repository for production reports.' }

@@ -6,24 +6,13 @@ To run directly on an on-premises Windows server without GitHub, use [the manual
 
 ## 1. Put the report in your company repository
 
-Use your existing `saabgroup/entra-app_registration_report` repository on `saabgroup.ghe.com`, or another approved private/internal company repository. Copy `scripts/`, `config/`, `docs/`, `README.md`, `.gitignore` and `THIRD-PARTY-NOTICES.txt`, plus `.github/workflows/report.yml`.
+Use your existing `saabgroup/entra-app_registration_report` repository on `saabgroup.ghe.com`, or another approved private/internal company repository. Copy `scripts/`, `config/`, `docs/`, `README.md`, `.gitignore` and `THIRD-PARTY-NOTICES.txt`, plus `.github/workflows/report.yml`. You can also copy `Start-TestRun.ps1` for optional local testing; the GitHub job does not use it.
 
-When replacing the old report, remove its `.github/workflows/main.yml` so there is only one report workflow. Do not copy `.git/`, the reference ZIP, or previously generated reports. Commit the source files to `main` using your normal company process. Do not run production reports in the personal development repository.
+When replacing the old report, remove its `.github/workflows/main.yml` so there is only one report workflow. Alternatively, replace the contents of the existing `main.yml` with our `report.yml` and keep that filename; do not also add `report.yml`. The old root `app_reg.ps1` is no longer used and can be removed. Preserve any unrelated company-required repository files and settings.
 
-## Test on test-report before replacing main
+Do not copy `.git/`, the reference ZIP, or previously generated reports. Commit the source files to `main` using your normal company process. The supplied workflow accepts only `main`; the local test launcher remains available separately. Do not run production reports in the personal development repository.
 
-The supplied workflow allows only `main` and `test-report`. The run name shows the selected branch. Both branches use the same repository secrets and read the same tenant; a test branch does not select a different tenant.
-
-Do these steps manually in company GitHub and Entra:
-
-1. Create `test-report` from the company repository's `main` branch.
-2. Copy the new report's `scripts/`, `config/` and supporting source files into `test-report`. For this existing repository, put the contents of our `.github/workflows/report.yml` into its already registered `.github/workflows/main.yml` **on test-report only**. Keep the existing workflow filename and do not also add `report.yml`. This lets you use the existing manual workflow entry without changing the report on `main`.
-3. Check the reader app's read permissions and existing `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` secrets as described below. Set the report's tenant display name.
-4. In Entra, open the reader app → **Certificates & secrets → Federated credentials → Add credential → Other issuer**. Name it `github-test-report`. Copy the issuer and audience from the working main-branch credential. For a branch-based subject, preserve the complete repository/owner portion, including any immutable IDs, and replace only the ending `refs/heads/main` with `refs/heads/test-report`. Keep the original credential. If your existing subject is customized, have the administrator confirm the exact test-branch subject instead.
-5. Commit the files to `test-report`. Open the existing workflow under **Actions** (its menu name can still be **Run App Registration Script**, from the version on main). Select **Run workflow → test-report**. The run uses the workflow and collector from that branch and generates its own Summary and artifact.
-6. After reviewing the report, merge through your normal company process. Keep one workflow filename; when using `main.yml`, continue using that file instead of adding `report.yml`. You can then remove the test-branch federated credential when testing is finished.
-
-If using a new workflow filename instead of the existing one, GitHub requires that workflow with `workflow_dispatch` to exist on the default branch before it can be manually dispatched. See [GitHub's manual workflow instructions](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
+Before starting, check the four application read permissions below, the existing two repository secrets and the matching main-branch federated credential. Reusing the same tenant, reader app, repository and branch normally means you can retain the existing secrets and federation. The more complete report still needs its additional read permissions to be consented. No test-branch credential is needed. If one was created earlier, the administrator can remove it when it is no longer used.
 
 ## 2. Reuse or create the Entra reader app
 
@@ -98,7 +87,7 @@ GitHub renders the Summary directly on the run page; the HTML is opened after do
 ## If a step fails
 
 - **Missing/invalid ID:** check the two repository secrets.
-- **Branch validation:** select `main` or `test-report`, and ensure Entra has the matching federated credential.
+- **Branch validation:** select `main`, and ensure Entra has the matching federated credential.
 - **Repository visibility:** use a private or internal company repository.
 - **OIDC/login failure:** compare the actual issuer, subject and audience with the Entra credential, and check Actions policies.
 - **Tenant/client mismatch:** check that both secrets select the intended production reader.

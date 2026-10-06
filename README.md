@@ -11,7 +11,7 @@ Read-only production reports for Microsoft Entra applications.
 
 One job runs on a GitHub-hosted Ubuntu runner. It uses `azure/login@v2`, Az and a Graph access token, following the existing work setup. No GitHub environment or client-secret value is required. Blank or invalid reader IDs prevent authentication; the collector verifies the signed-in tenant and client before requesting inventory.
 
-To try the new report before replacing production code, use the `test-report` branch. The workflow allows `main` and `test-report`; Entra needs a separate matching test-branch federated credential. The guide explains how to reuse the existing company workflow filename so `main` can keep its current report during testing.
+The workflow runs only from `main` and only when manually started. Replace the existing report workflow so the company repository contains one report workflow. Keep the existing repository secrets and matching main-branch federation, and verify the full report's Graph read permissions before the first run.
 
 ## Report
 
