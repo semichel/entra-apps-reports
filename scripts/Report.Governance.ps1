@@ -43,7 +43,8 @@ function Update-AppGovernance {
     }
     $App['findings'] = $findings.ToArray()
     $statuses = @($findings | ForEach-Object { Get-Str $_ 'status' })
-    $App['status'] = if ($statuses -contains 'FAIL') { 'FAIL' } elseif ($statuses -contains 'UNKNOWN') { 'UNKNOWN' } elseif ($statuses -contains 'WARN') { 'WARN' } elseif ($statuses -contains 'MANUAL') { 'MANUAL' } else { 'PASS' }
+    $App['manualValidationRequired'] = ($statuses -contains 'MANUAL')
+    $App['status'] = if ($statuses -contains 'FAIL') { 'FAIL' } elseif ($statuses -contains 'UNKNOWN') { 'UNKNOWN' } elseif ($statuses -contains 'WARN') { 'WARN' } elseif ($statuses -contains 'PASS') { 'PASS' } else { 'MANUAL' }
 }
 #= Apply the same checks to saved evidence, enterprise apps and standalone registrations
 function Update-ReportGovernance {

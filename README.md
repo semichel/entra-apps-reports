@@ -29,6 +29,8 @@ The inventory includes your organization's and third-party enterprise apps and l
 
 The collector uses Graph GET requests. Credential values and private keys are not exported. Optional evidence failures appear as unavailable. Findings describe configuration observations; authentication and application-side validation remain manual.
 
+`Passed` means the automatic configuration checks passed. Manual checks stay visible in the application details and the `Manual validation required` tag; they do not block a configuration pass. Failed checks produce `Failed`, while warnings or unknown results produce `Investigate`. A configuration pass does not certify working sign-in or overall compliance.
+
 Directory audit logs are not collected. `AuditLog.Read.All` is still needed for sign-in evidence. The report is a configuration snapshot with observations; it does not send alerts or monitor changes between runs.
 
 ## Contents
