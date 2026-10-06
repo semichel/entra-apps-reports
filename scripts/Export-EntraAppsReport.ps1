@@ -2,8 +2,8 @@
 .SYNOPSIS
 Exports read-only production Entra application configuration and evidence.
 .DESCRIPTION
-Requires a valid production configuration and an existing matching reader Graph context.
-The GitHub workflow uses workload identity federation. Local runs can use delegated user or certificate authentication.
+Runs from GitHub Actions with validated configuration and a matching reader Graph context.
+The workflow authenticates using workload identity federation.
 .EXAMPLE
 ./scripts/Export-EntraAppsReport.ps1 -ConfigPath ./config/production.json
 #>

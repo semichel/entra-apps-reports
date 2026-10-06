@@ -1,62 +1,45 @@
 # Entra Apps Reports
 
-Inventerar organisationens Entra-appregistreringar och enterprise-appar/SPN: ägare, beskrivningar, certifikat/hemligheters datum, tilldelningar, API-behörigheter, federation och policyer. Inbyggda Microsoft-appar undantas. Körningen läser konfiguration och skapar HTML, JSON och CSV; inga sign-in- eller auditloggar hämtas.
+Read-only inventory and configuration checks for Entra app registrations and enterprise applications. Reports include owners, descriptions, certificate and secret dates, assignments, API permissions, consent and federation. Microsoft-owned enterprise applications are excluded. Sign-in and audit logs are not collected.
 
-## GitHub Actions
+## Run and view
 
-HTML-rapporten och Actions-sammanfattningen visar statistik per kontroll: PASS, FAIL, WARN, UNKNOWN, undantagna/inaktiverade och ej tillämpliga. Varje app räknas en gång per kontroll.
+Run **Actions → Entra application report → Run workflow** on `main`. The Actions summary includes application results and statistics per check. Download the run's artifact for the self-contained HTML report and JSON/CSV evidence.
 
-Filtertaggarna visar kontrollens namn och resultat, exempelvis `EnterpriseAdminOwner: FAIL` eller `RegistrationDescription: WARN`.
-Tagglistan anpassas efter status, kategori, severity och sökning. Failed visar FAIL-taggar, Passed visar PASS-taggar och Investigate visar WARN/UNKNOWN. Taggval som inte längre passar urvalet rensas automatiskt.
+Filter tags identify the check and result, for example `EnterpriseAdminOwner: FAIL`. Tag options follow the selected status, category, severity and search. Failed shows FAIL tags; Passed shows PASS tags; Investigate shows WARN/UNKNOWN tags.
 
-Normal körning: **Actions → Entra application report → Run workflow**, från `main`. Rapporten visas i Actions-sammanfattningen och hela HTML/JSON/CSV-resultatet finns i körningens artifact. Tenant och körande app anges av repository-secrets eller Actions Variables `AZURE_TENANT_ID` och `AZURE_CLIENT_ID` under **Settings → Secrets and variables → Actions**. Secrets prioriteras om båda finns. Tenant-ID är katalogens ID; client-ID är rapportappens Application (client) ID, inte dess Object ID. Organization-secrets måste vara tillgängliga för repot; environment-secrets kräver att jobbet kopplas till samma environment.
+The workflow uses federated authentication. Set `AZURE_TENANT_ID` and `AZURE_CLIENT_ID` as repository Actions secrets or variables under **Settings → Secrets and variables → Actions**. Secrets take priority. Client ID means the report application's **Application (client) ID**, not its Object ID. Organization secrets must allow this repository; environment secrets require the job to target that environment. The repository must be private or internal.
 
-## Config och kontroller
+## Configuration
 
-[config/production.json](config/production.json) styr bedömningen. `tenantDisplayName` är rapportens visningsnamn, inte valet av tenant. Ändra fälten under `rules` för era krav:
+[config/production.json](config/production.json) defines the report rules. `tenantDisplayName` changes the display label; the workflow's tenant ID selects the tenant.
 
-| Fält | Funktion och standardkrav |
+| Setting | Default requirement / check |
 |---|---|
-| `ownerUpnPrefix`, `minimumAdminOwners` | Minst **1** användarägare med UPN-prefix **azadmu**, separat på SPN och appregistrering. Kontroller: `EnterpriseAdminOwner`, `RegistrationAdminOwner`. |
-| `requireDescriptions` | Beskrivning krävs på båda objekten; tomt eller blanksteg ger varning. Ingen standardtext krävs. Kontroller: `EnterpriseDescription`, `RegistrationDescription`. |
-| `requireAssignment` | Tilldelning måste krävas. Kontroll: `AssignmentRequired`. |
-| `requireGroupAssignment` | Minst en tilldelad grupp; direkta användare får också finnas. Kontroll: `GroupAssignmentsPreferred`. |
-| `requireRedirectUris`, `allowLocalhostHttp` | Minst en HTTPS-redirect. HTTP till localhost tillåts som standard. Kontroll: `RedirectUriSecurity`. |
-| `maxSecretLifetimeDays`, `maxCertificateLifetimeDays` | Högst **90** respektive **365** dagars livslängd för befintliga credentials. Utgångna eller ogiltiga datumperioder ger fel. Kontroll: `CredentialDates`. |
-| `credentialWarningDays` | Varning vid **30** eller färre hela dagar kvar. Framtida startdatum ger också varning. |
+| `ownerUpnPrefix`, `minimumAdminOwners` | At least **1** user owner with UPN prefix **azadmu**, checked separately on the enterprise application and app registration: `EnterpriseAdminOwner`, `RegistrationAdminOwner`. |
+| `requireDescriptions` | Nonempty descriptions on both objects. Empty or whitespace-only values produce WARN: `EnterpriseDescription`, `RegistrationDescription`. No standard wording is enforced. |
+| `requireAssignment` | User assignment required must be enabled; otherwise FAIL: `AssignmentRequired`. |
+| `requireGroupAssignment` | At least one assigned group; otherwise WARN. Direct user assignments may also exist: `GroupAssignmentsPreferred`. |
+| `requireRedirectUris`, `allowLocalhostHttp` | Redirect URLs must exist and use HTTPS, with localhost HTTP allowed by default. Invalid URLs produce FAIL; missing URLs produce UNKNOWN: `RedirectUriSecurity`. |
+| `maxSecretLifetimeDays`, `maxCertificateLifetimeDays` | Maximum lifetime **90** days for secrets and **365** days for certificates. Expired credentials, invalid date ranges or excessive lifetime produce FAIL: `CredentialDates`. |
+| `credentialWarningDays` | WARN at **30** or fewer whole days remaining. Future start dates also produce WARN. |
 
-Kravfält kan sättas till `false` för att stänga av kontrollen. Numeriska värden är heltal mellan 1 och 10000. Saknade credentials eller registrering i en annan tenant visas som `NOT_APPLICABLE`; saknade uppgifter som behövs för bedömning ger `UNKNOWN`. API-behörigheter, federation och policyer visas som information.
+Set a `require...` setting to `false` to disable that requirement. Numeric settings accept integers from 1 to 10000. Missing credential metadata and external app registrations are not applicable; missing evidence needed for evaluation produces UNKNOWN. API permissions, federation and tenant policies are informational.
 
-**Passed** betyder att aktiva, tillämpliga kontroller passerar. Fel ger **Failed**; varningar eller okända resultat ger **Investigate**. Rapporten har inga manuella kontrollpunkter.
+**Passed** means all active, applicable checks passed. FAIL produces **Failed**; WARN or UNKNOWN produces **Investigate**. The report does not perform application sign-in tests or require manual validation.
 
-`disabledChecks` stänger av namngivna kontroller för alla appar, exempelvis `["GroupAssignmentsPreferred"]`. `exclusions` ger undantag för en app via dess **Application (client) ID**:
+## Exclusions
+
+`disabledChecks` disables named checks for all applications, for example `["GroupAssignmentsPreferred"]`. Use `exclusions` for individual applications, identified by **Application (client) ID**:
 
 ```json
 "exclusions": [
   {
     "appId": "11111111-2222-3333-4444-555555555555",
     "checks": ["EnterpriseDescription", "RegistrationDescription"],
-    "reason": "Godkänt undantag enligt beställning 12345"
+    "reason": "Approved exception under request 12345"
   }
 ]
 ```
 
-Använd `"checks": ["*"]` för hela appen. Undantag visas som **Skipped** med motivering; appen finns kvar i inventeringen. Inga undantag är aktiverade från början. Regler och undantag sparas med rapporten och visas under tenantposten.
-
-## Testa lokalt/on-prem
-
-Kör från repots rot i PowerShell 7 med ditt eget Global Reader-konto:
-
-```powershell
-.\Start-TestRun.ps1 -TenantId 'DIN-TENANT-ID'
-```
-
-Lägg till `-UseDeviceCode` för device-inloggning. Resultatet finns i `reports/latest/report.html` med JSON och CSV i samma mapp.
-
-För att bara rendera sparad data med aktuell config, utan inloggning eller Graph-hämtning:
-
-```powershell
-.\Render-Report.ps1 -ConfigPath .\config\production.json
-```
-
-Utan `-ConfigPath` använder renderingen reglerna som sparats i rapporten. Ändringar i Entra kräver en ny insamling.
+Use `"checks": ["*"]` to exclude every check for that application. Excluded checks remain visible as SKIPPED with the reason; applications remain in the inventory. Rules and exclusions are saved with each report and shown in the tenant entry. No exclusions are enabled by default.

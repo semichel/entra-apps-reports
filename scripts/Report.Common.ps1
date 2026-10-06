@@ -24,7 +24,7 @@ function Get-Str {
     return [string]$value
 }
 
-#= Validate local rendering prerequisites before starting a long Graph collection
+#= Validate required report files before starting Graph collection
 function Assert-ReportPrerequisites {
     foreach ($relativePath in @('Report.Render.ps1', 'Report.Rules.ps1', 'Report.Evidence.ps1', 'templates/report.html', 'templates/check-statistics.js', 'templates/report-filters.js', 'templates/saab-logo.png', 'templates/brand.css')) {
         if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $relativePath) -PathType Leaf)) { throw "Missing report file: $relativePath. Copy the complete project before running; no inventory requests have been made." }
@@ -232,7 +232,7 @@ function Convert-CsvText {
     return $Value
 }
 
-#= Validate report settings and the reader IDs supplied locally or by GitHub secrets
+#= Validate report settings and the reader IDs supplied by the workflow
 function Read-ReportDeployment {
     param(
         [string]$Path,
