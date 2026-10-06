@@ -258,6 +258,13 @@ function Export-ReportHtml {
     $template = [regex]::Replace($template, $logoPattern, 'is=`' + $logo + '`')
     $template = [regex]::Replace($template, '<link rel="icon"[^>]+>', '<link rel="icon" type="image/png" href="' + $logo + '" />')
     $component = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'templates/check-statistics.js'))
+    $component += "`n" + [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'templates/report-filters.js'))
+    $tagAnchor = 'oe=[...new Set(D.Tests.flatMap(e=>e.Tag||[]))]'
+    if ([regex]::Matches($template, [regex]::Escape($tagAnchor)).Count -ne 1) { throw 'Report template has no unique tag filter insertion point.' }
+    $template = $template.Replace($tagAnchor, 'oe=EntraAvailableTags(D.Tests,a,s,d,e=>lHe(e,p),a.length>0&&a.length<b2.length)')
+    $filterAnchor = 'return(0,z.jsxs)(t1,{children:[!e.isPrintView'
+    if ([regex]::Matches($template, [regex]::Escape($filterAnchor)).Count -ne 1) { throw 'Report template has no unique tag selection insertion point.' }
+    $template = $template.Replace($filterAnchor, '(0,y.useEffect)(()=>{const next=l.filter(tag=>oe.includes(tag));if(next.length!==l.length)u(next)},[oe.join("\u001f"),l]);' + $filterAnchor)
     $anchor = '(0,z.jsx)(uHe,{TestResults:e,selectedStatus:t,onStatusChange:n})'
     if ([regex]::Matches($template, [regex]::Escape($anchor)).Count -ne 1) { throw 'Report template has no unique statistics insertion point.' }
     $template = $template.Replace('function dHe(){', $component + "`nfunction dHe(){")
