@@ -187,11 +187,11 @@ function Get-ReportResults {
     $apps | ForEach-Object {
         $app = $_
         $result = switch (Get-Str $app 'status') { 'FAIL' { 'Failed' } 'PASS' { 'Passed' } 'SKIPPED' { 'Skipped' } default { 'Investigate' } }
-        $protocol = Get-Str $app 'protocol'; if (-not $protocol) { $protocol = 'Protocol unknown' }
-        $tags = [Collections.Generic.List[string]]::new(); $tags.Add($mode); $tags.Add('Application inventory'); $tags.Add($protocol)
-        if (@(@((Get-Val $app 'credentials')) | Where-Object { $null -ne $_ -and (Get-ReportExpiry $_ $Now).state -eq 'Expired' }).Count) { $tags.Add('Expired credential') }
-        if (@(@((Get-Val $app 'findings')) | Where-Object { (Get-Str $_ 'rule') -in @('EnterpriseAdminOwner','RegistrationAdminOwner') -and (Get-Str $_ 'status') -in @('FAIL','UNKNOWN') }).Count) { $tags.Add('Admin owner needs attention') }
-        if (@(@((Get-Val $app 'findings')) | Where-Object { (Get-Str $_ 'rule') -in @('EnterpriseDescription','RegistrationDescription') -and (Get-Str $_ 'status') -eq 'WARN' }).Count) { $tags.Add('⚠ Missing description') }
+        $tags = [Collections.Generic.List[string]]::new()
+        @((Get-Val $app 'findings')) | Where-Object { $null -ne $_ } | Sort-Object { Get-Str $_ 'rule' } | ForEach-Object {
+            $tag = (Get-Str $_ 'rule') + ': ' + (Get-Str $_ 'status')
+            if (-not $tags.Contains($tag)) { $tags.Add($tag) }
+        }
         $category = if (Get-Val $app 'registration') { 'Local app registrations' } else { 'External / platform applications' }
         $title = Get-Str $app 'displayName'; if (-not $title) { $title = Get-Str $app 'appId' }
         $content = $scope + (Get-ReportAppDetails $app $Now $byId $byAppId)
@@ -218,7 +218,7 @@ function Get-ReportResults {
     }
     $coverage += New-ReportSection 'Configured app exclusions' @('App ID','Checks','Reason') $rows 'No app exclusions configured.'
     $coverage += "`nDisabled checks: " + (Convert-ReportCell ($configuration.disabledChecks -join ', ')) + "`n"
-    $tests.Add((New-ReportEntry ($tests.Count + 1) 'Tenant evidence and report scope' 'Investigate' 'Tenant evidence' @($mode,'Report scope') ($scope + $coverage) ($scope + "`n### Complete tenant policies and consent evidence`n" + (Convert-ReportEvidence $tenant))))
+    $tests.Add((New-ReportEntry ($tests.Count + 1) 'Tenant evidence and report scope' 'Investigate' 'Tenant evidence' @('Report scope') ($scope + $coverage) ($scope + "`n### Complete tenant policies and consent evidence`n" + (Convert-ReportEvidence $tenant))))
     $blocks = [Collections.Generic.List[object]]::new()
     $tests | Group-Object Block | Sort-Object Name | ForEach-Object {
         $group = $_

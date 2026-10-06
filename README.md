@@ -6,6 +6,8 @@ Inventerar organisationens Entra-appregistreringar och enterprise-appar/SPN: äg
 
 HTML-rapporten och Actions-sammanfattningen visar statistik per kontroll: PASS, FAIL, WARN, UNKNOWN, undantagna/inaktiverade och ej tillämpliga. Varje app räknas en gång per kontroll.
 
+Filtertaggarna visar kontrollens namn och resultat, exempelvis `EnterpriseAdminOwner: FAIL` eller `RegistrationDescription: WARN`.
+
 Normal körning: **Actions → Entra application report → Run workflow**, från `main`. Rapporten visas i Actions-sammanfattningen och hela HTML/JSON/CSV-resultatet finns i körningens artifact. Tenant och körande app anges av repository-secrets `AZURE_TENANT_ID` och `AZURE_CLIENT_ID`.
 
 ## Config och kontroller
