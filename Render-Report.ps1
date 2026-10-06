@@ -8,7 +8,8 @@ Recreates HTML and CSV files from an existing report.json without connecting to 
 [CmdletBinding()]
 param(
     [string]$ReportPath = (Join-Path $PSScriptRoot 'reports/latest/report.json'),
-    [string]$OutputDirectory
+    [string]$OutputDirectory,
+    [string]$ConfigPath
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -18,5 +19,6 @@ $savedReportPath = (Resolve-Path -LiteralPath $ReportPath).Path
 if (-not $OutputDirectory) { $OutputDirectory = Split-Path -Parent $savedReportPath }
 $script:LogPath = if ($env:IACPORTAL_LOG) { $env:IACPORTAL_LOG } else { Join-Path ([IO.Path]::GetTempPath()) ('entra-report-render-{0}.log' -f [guid]::NewGuid()) }
 $report = Get-Content -LiteralPath $savedReportPath -Raw | ConvertFrom-Json -AsHashtable -Depth 100
+if ($ConfigPath) { $report['ruleConfiguration'] = Get-ReportRuleConfiguration (Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json -AsHashtable) }
 Export-AppReport $report $OutputDirectory
 Write-ReportLog ('Report recreated: {0}. No Graph connection or collection.' -f (Join-Path ([IO.Path]::GetFullPath($OutputDirectory)) 'report.html')) Green

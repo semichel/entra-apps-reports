@@ -132,9 +132,9 @@ function Get-ReportAppDetails {
     $empty = if ((Get-Str $federation 'status') -eq 'AVAILABLE') { 'No federation records.' } else { 'Federation evidence unavailable or registration belongs to another tenant.' }
     [void]$text.Append((New-ReportSection 'Federated credentials' @('Name','Issuer','Subject','Audiences') $rows $empty))
     $rows.Clear()
-    $icons = @{ PASS = '✅'; WARN = '⚠'; FAIL = '❌'; UNKNOWN = '❔'; MANUAL = '🔍'; NOT_APPLICABLE = '—' }
+    $icons = @{ PASS = '✅'; WARN = '⚠'; FAIL = '❌'; UNKNOWN = '❔'; NOT_APPLICABLE = '—'; SKIPPED = '⏭' }
     @((Get-Val $App 'findings')) | Where-Object { $null -ne $_ } | ForEach-Object { $status = Get-Str $_ 'status'; $rows.Add(@((Get-Val $_ 'rule'), ((Get-Val $icons $status) + ' ' + $status), (Get-Val $_ 'evidence'))) }
-    [void]$text.Append((New-ReportSection 'Policy findings and manual validation' @('Check','Observation','Evidence / next action') $rows))
+    [void]$text.Append((New-ReportSection 'Configuration checks' @('Check','Observation','Evidence') $rows))
     return $text.ToString()
 }
 
@@ -163,14 +163,13 @@ function Get-ReportResults {
         if (-not $byAppId.ContainsKey([string](Get-Val $registration 'appId'))) { $apps.Add(@{ displayName = Get-Val $registration 'displayName'; appId = Get-Val $registration 'appId'; registration = $registration; credentials = Get-Val $registration 'credentials'; status = Get-Val $registration 'status'; findings = Get-Val $registration 'findings' }) }
     }
     $mode = Get-Str $Report 'mode'; if (-not $mode) { $mode = 'UNKNOWN' }
-    $scope = 'Inventory mode: **' + (Convert-ReportCell $mode) + '**. Collected UTC: **' + (Convert-ReportCell (Format-ReportDate (Get-Val $Report 'generatedAtUtc'))) + '**. Expiry calculations UTC: **' + (Format-ReportDate $Now) + '**. Passed means automatic configuration checks passed; manual validation remains required where listed. This is collected application evidence. Failed denotes recorded configuration findings, not a completed sign-in or compliance test. Info severity is the inventory entry classification, not an assigned business risk rating. Microsoft/platform/resource applications require an applicability review.' + "`n"
+    $scope = 'Inventory mode: **' + (Convert-ReportCell $mode) + '**. Collected UTC: **' + (Convert-ReportCell (Format-ReportDate (Get-Val $Report 'generatedAtUtc'))) + '**. Expiry calculations UTC: **' + (Format-ReportDate $Now) + '**. Passed means automatic configuration checks passed. This is collected application evidence. Failed denotes recorded configuration findings, not a completed sign-in or compliance test. Info severity is the inventory entry classification, not an assigned business risk rating. Checks cover the configuration collected from Graph.' + "`n"
     $tests = [Collections.Generic.List[object]]::new()
     $apps | ForEach-Object {
         $app = $_
-        $result = switch (Get-Str $app 'status') { 'FAIL' { 'Failed' } 'PASS' { 'Passed' } default { 'Investigate' } }
+        $result = switch (Get-Str $app 'status') { 'FAIL' { 'Failed' } 'PASS' { 'Passed' } 'SKIPPED' { 'Skipped' } default { 'Investigate' } }
         $protocol = Get-Str $app 'protocol'; if (-not $protocol) { $protocol = 'Protocol unknown' }
         $tags = [Collections.Generic.List[string]]::new(); $tags.Add($mode); $tags.Add('Application inventory'); $tags.Add($protocol)
-        if (Get-Val $app 'manualValidationRequired') { $tags.Add('Manual validation required') }
         if (@(@((Get-Val $app 'credentials')) | Where-Object { $null -ne $_ -and (Get-ReportExpiry $_ $Now).state -eq 'Expired' }).Count) { $tags.Add('Expired credential') }
         if (@(@((Get-Val $app 'findings')) | Where-Object { (Get-Str $_ 'rule') -in @('EnterpriseAdminOwner','RegistrationAdminOwner') -and (Get-Str $_ 'status') -in @('FAIL','UNKNOWN') }).Count) { $tags.Add('Admin owner needs attention') }
         if (@(@((Get-Val $app 'findings')) | Where-Object { (Get-Str $_ 'rule') -in @('EnterpriseDescription','RegistrationDescription') -and (Get-Str $_ 'status') -eq 'WARN' }).Count) { $tags.Add('⚠ Missing description') }
@@ -188,6 +187,18 @@ function Get-ReportResults {
     $rows.Clear()
     @((Get-Val (Get-Val $tenant 'conditionalAccessPolicies') 'items')) | Where-Object { $null -ne $_ } | ForEach-Object { $rows.Add(@((Get-Val $_ 'displayName'), (Get-Val $_ 'state'), (Get-Val $_ 'id'))) }
     $coverage += New-ReportSection 'Conditional Access policies' @('Policy','State','Policy ID') $rows
+    $rows.Clear()
+    $configuration = Get-Val $Report 'ruleConfiguration'
+    foreach ($key in $configuration.rules.Keys) {
+        $rows.Add(@($key, (Get-Val $configuration.rules $key)))
+    }
+    $coverage += New-ReportSection 'Applied report rules' @('Rule setting','Value') $rows
+    $rows.Clear()
+    foreach ($exclusion in $configuration.exclusions) {
+        $rows.Add(@((Get-Val $exclusion 'appId'), (@((Get-Val $exclusion 'checks')) -join ', '), (Get-Val $exclusion 'reason')))
+    }
+    $coverage += New-ReportSection 'Configured app exclusions' @('App ID','Checks','Reason') $rows 'No app exclusions configured.'
+    $coverage += "`nDisabled checks: " + (Convert-ReportCell ($configuration.disabledChecks -join ', ')) + "`n"
     $tests.Add((New-ReportEntry ($tests.Count + 1) 'Tenant evidence and report scope' 'Investigate' 'Tenant evidence' @($mode,'Report scope') ($scope + $coverage) ($scope + "`n### Complete tenant policies and consent evidence`n" + (Convert-ReportEvidence $tenant))))
     $blocks = [Collections.Generic.List[object]]::new()
     $tests | Group-Object Block | Sort-Object Name | ForEach-Object {
@@ -240,7 +251,7 @@ function Export-ReportSummary {
     $results = Get-ReportResults $Report $now
     $summary = [Text.StringBuilder]::new("| Application / report entry | Severity | Status |`n|---|:---:|:---:|`n")
     $details = [Collections.Generic.List[string]]::new()
-    $icons = @{ Passed = '✅'; Failed = '❌'; Investigate = '🔍' }
+    $icons = @{ Passed = '✅'; Failed = '❌'; Investigate = '🔍'; Skipped = '⏭' }
     $results.Tests | ForEach-Object {
         $test = $_
         $title = Convert-ReportCell $test.Title; $badge = $icons[$test.Result] + ' ' + $test.Result
@@ -253,7 +264,7 @@ function Export-ReportSummary {
         $template = $template.Replace('%' + $key + '%', (Convert-ReportCell $results[$key]))
     }
     $template = $template.Replace('%TestDate%', (Convert-ReportCell $results.ExecutedAt) + ' (UTC)').Replace('%TestSummary%', $summary.ToString().TrimEnd())
-    $intro = '**Tenant ID:** ' + (Convert-ReportCell (Get-Val $Report 'tenantId')) + "`n`n**" + @(@((Get-Val $Report 'applications')) | Where-Object { $null -ne $_ }).Count + ' enterprise applications · ' + @(@((Get-Val $Report 'registrations')) | Where-Object { $null -ne $_ }).Count + " local registrations.** Report totals also include one tenant evidence entry.`n`n**Passed** means automatic configuration checks passed; listed manual checks remain required. **Failed** means recorded configuration findings; these are inventory observations. **Info** is the entry classification, not a business risk score.`n`nManual authentication validation and policy applicability review remain required. Expiry calculations UTC: " + (Format-ReportDate $now) + ".`n`n[Download the interactive HTML report and JSON/CSV evidence](" + $ArtifactUrl + "). Extract the artifact and open report.html.`n`n"
+    $intro = '**Tenant ID:** ' + (Convert-ReportCell (Get-Val $Report 'tenantId')) + "`n`n**" + @(@((Get-Val $Report 'applications')) | Where-Object { $null -ne $_ }).Count + ' enterprise applications · ' + @(@((Get-Val $Report 'registrations')) | Where-Object { $null -ne $_ }).Count + " local registrations.** Report totals also include one tenant evidence entry.`n`n**Passed** means automatic configuration checks passed. **Failed** means recorded configuration findings; these are inventory observations. **Info** is the entry classification, not a business risk score.`n`nExpiry calculations UTC: " + (Format-ReportDate $now) + ".`n`n[Download the interactive HTML report and JSON/CSV evidence](" + $ArtifactUrl + "). Extract the artifact and open report.html.`n`n"
     $template = $template.Replace('## Application summary', $intro + '## Application summary')
     $budget = 1MB - [Text.Encoding]::UTF8.GetByteCount($template) - 2048
     $included = [Text.StringBuilder]::new(); $count = 0

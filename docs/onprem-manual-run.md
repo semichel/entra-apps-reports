@@ -60,13 +60,9 @@ Each successful run replaces the files in `reports\latest`. To retain separate r
 .\Start-TestRun.ps1 -TenantId 'YOUR-PRODUCTION-TENANT-ID' -OutputDirectory C:\Reports\Entra\run-001
 ```
 
-## Description and administrator owner checks
+## Checks, configurable rules and exclusions
 
-Both the enterprise application (service principal/SPN) and the local app registration must have a populated description. Null, empty and whitespace-only descriptions show `⚠ WARN` with an instruction to fill them in. There is no required standard text or order number yet.
-
-Each object passes its owner check with at least one user owner whose `userPrincipalName` begins with `azadmu`, ignoring case. An admin on the registration does not satisfy the enterprise-app owner check, or vice versa. The check uses your account naming convention; it does not verify active directory-role assignments. User owners with other UPNs and service-principal owners are preserved in the inventory but do not satisfy this check.
-
-Owner UPNs are collected with owners and shown in the report. If owner access or UPN evidence is unavailable, the check is `UNKNOWN`. [Microsoft documents that owner properties can be null when read permissions are insufficient](https://learn.microsoft.com/en-us/graph/api/application-list-owners?view=graph-rest-1.0). Older saved reports without UPNs can be rendered again, but require a new collection to verify admin ownership. App registrations in an external home tenant cannot be evaluated locally and are marked `NOT_APPLICABLE`.
+See [the rule summary](report-rules.md) for every automatic check, pass conditions and config-based exclusions. There are no manual checks or sign-in log reads. You can apply changed config to existing evidence with Render-Report.ps1 -ConfigPath ./config/production.json without signing in or collecting again.
 
 ## Troubleshooting
 

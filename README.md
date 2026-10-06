@@ -23,13 +23,13 @@ The Actions Summary contains totals, an application list and expandable details.
 
 The HTML report includes application owners, certificate/secret expiry, assignments, granted and requested API permissions, federation and policy observations. Large inventories retain all evidence in the artifact when GitHub's summary limit restricts expanded details.
 
-Descriptions must contain non-whitespace text on both the enterprise application and its local app registration; an empty description shows a ⚠ warning. Each object needs at least one user owner whose UPN starts with `azadmu` (case-insensitive). The two owner checks are independent. Other owners remain listed, but do not satisfy this administrator naming convention. Missing owner/UPN evidence is unknown rather than approved. Standard description wording and order-number validation are not enforced yet. External home-tenant registrations are marked not applicable when no local registration exists.
+Kontroller, godkännandekrav, ändringsbara regler och undantag beskrivs i [regelöversikten](docs/report-rules.md). Ändra config/production.json för era krav. Undantagna kontroller visas som Skipped med motivering; apparna finns kvar i inventeringen.
 
 The inventory includes your organization's and third-party enterprise apps and local registrations. First-party Microsoft enterprise apps are excluded using their owning tenant IDs, not their names. Microsoft API/resource metadata is still read in the background to resolve granted permissions such as Microsoft Graph roles. Apps with unknown owning tenants are retained rather than guessed away.
 
-The collector uses Graph GET requests. Credential values and private keys are not exported. Optional evidence failures appear as unavailable. Findings describe configuration observations; authentication and application-side validation remain manual.
+The collector uses Graph GET requests. Credential values and private keys are not exported. Optional evidence failures appear as unavailable. Findings describe automatically evaluated configuration observations.
 
-`Passed` means the automatic configuration checks passed. Manual checks stay visible in the application details and the `Manual validation required` tag; they do not block a configuration pass. Failed checks produce `Failed`, while warnings or unknown results produce `Investigate`. A configuration pass does not certify working sign-in or overall compliance.
+`Passed` means the automatic configuration checks passed. Only automatic checks are included. When no credential metadata exists, the credential check is not applicable. Failed checks produce `Failed`, while warnings or unknown results produce `Investigate`. A configuration pass does not certify working sign-in or overall compliance.
 
 Sign-in logs and directory audit logs are not collected. `AuditLog.Read.All` is not required. The report is a configuration snapshot with observations; it does not send alerts or monitor changes between runs.
 

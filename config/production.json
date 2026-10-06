@@ -1,3 +1,17 @@
 {
-  "tenantDisplayName": "Production"
+  "tenantDisplayName": "Production",
+  "rules": {
+    "ownerUpnPrefix": "azadmu",
+    "minimumAdminOwners": 1,
+    "requireDescriptions": true,
+    "requireAssignment": true,
+    "requireGroupAssignment": true,
+    "requireRedirectUris": true,
+    "allowLocalhostHttp": true,
+    "maxSecretLifetimeDays": 90,
+    "maxCertificateLifetimeDays": 365,
+    "credentialWarningDays": 30
+  },
+  "disabledChecks": [],
+  "exclusions": []
 }

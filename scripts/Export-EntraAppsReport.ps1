@@ -51,6 +51,7 @@ $report = [ordered]@{
     schemaVersion = '1.0'; tenantId = $TenantId; generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
     tenantDisplayName = Get-Str $deployment 'tenantDisplayName'
     deploymentEnvironment = 'production'; mode = 'LIVE'; applications = $applications.ToArray()
+    ruleConfiguration = Get-Val $deployment 'ruleConfiguration'
     inventoryScope = [ordered]@{ microsoftOwnedAppsExcluded = $true; excludedMicrosoftAppCount = ($loadedPrincipalCount - $principals.Count); retainedApplicationCount = $principals.Count }
 }
 . (Join-Path $PSScriptRoot 'Report.Evidence.ps1')

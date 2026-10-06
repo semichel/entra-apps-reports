@@ -9,6 +9,7 @@ function Read-ReportDeployment {
         [string]$ClientId = $env:AZURE_CLIENT_ID
     )
     $config = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -AsHashtable
+    $config['ruleConfiguration'] = Get-ReportRuleConfiguration $config
     $config['tenantId'] = $TenantId
     $config['clientId'] = $ClientId
     foreach ($field in @('tenantId', 'clientId')) {

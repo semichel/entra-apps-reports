@@ -26,7 +26,7 @@ function Get-Str {
 
 #= Validate local rendering prerequisites before starting a long Graph collection
 function Assert-ReportPrerequisites {
-    foreach ($relativePath in @('Report.Render.ps1', 'Report.Governance.ps1', 'templates/report.html')) {
+    foreach ($relativePath in @('Report.Render.ps1', 'Report.Governance.ps1', 'Report.Rules.ps1', 'templates/report.html')) {
         if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $relativePath) -PathType Leaf)) { throw "Missing report file: $relativePath. Copy the complete project before running; no inventory requests have been made." }
     }
 }
@@ -192,17 +192,13 @@ function New-AppReport {
     $findings.Add((New-Finding 'AssignmentRequired' $assignmentStatus ("Configured value: {0}" -f $assignmentRequired)))
     $urlStatus = if ($badUrls.Count -gt 0) { 'FAIL' } elseif ($redirects.Count -eq 0) { 'UNKNOWN' } else { 'PASS' }
     $findings.Add((New-Finding 'RedirectUriSecurity' $urlStatus ("Non-HTTPS/non-localhost URIs: {0}. Native-app custom schemes need separate review." -f ($badUrls -join ', '))))
-    $credentialStatus = if (@($credentials | Where-Object { (Get-Str $_ 'status') -eq 'FAIL' }).Count) { 'FAIL' } elseif (@($credentials | Where-Object { (Get-Str $_ 'status') -eq 'UNKNOWN' }).Count) { 'UNKNOWN' } elseif (@($credentials | Where-Object { (Get-Str $_ 'status') -eq 'WARN' }).Count) { 'WARN' } elseif ($credentials.Count) { 'PASS' } else { 'MANUAL' }
+    $credentialStatus = if (@($credentials | Where-Object { (Get-Str $_ 'status') -eq 'FAIL' }).Count) { 'FAIL' } elseif (@($credentials | Where-Object { (Get-Str $_ 'status') -eq 'UNKNOWN' }).Count) { 'UNKNOWN' } elseif (@($credentials | Where-Object { (Get-Str $_ 'status') -eq 'WARN' }).Count) { 'WARN' } elseif ($credentials.Count) { 'PASS' } else { 'NOT_APPLICABLE' }
     $findings.Add((New-Finding 'CredentialDates' $credentialStatus 'Policy: secrets <=90 days; certificates <=365 days; warning at <=30 days remaining. Retired keys may still be listed.'))
     $groups = @($assignmentList | Where-Object { (Get-Str $_ 'principalType') -eq 'Group' })
     $users = @($assignmentList | Where-Object { (Get-Str $_ 'principalType') -eq 'User' })
     $findings.Add((New-Finding 'GroupAssignmentsPreferred' $(if ($groups.Count) { 'PASS' } else { 'WARN' }) ("Groups: {0}; direct users: {1}. Nested membership is not evaluated." -f $groups.Count, $users.Count)))
-    $findings.Add((New-Finding 'ProtocolConfirmation' 'MANUAL' ("Graph SSO hint: {0}. A missing hint does not prove absence of OIDC." -f $mode)))
-    $findings.Add((New-Finding 'AuthenticationAndClaims' 'MANUAL' 'Test assigned/unassigned users, emitted claims, assertion validation, token lifetime, redirects, and logout in the actual application.'))
-    $findings.Add((New-Finding 'SamlVerificationAndEncryption' $(if ($protocol -in @('SAML', 'UNKNOWN')) { 'MANUAL' } else { 'NOT_APPLICABLE' }) 'Verify request-signature enforcement, active signing certificate, claim mappings, metadata and encryption requirement against the delivery form. UNKNOWN protocol still requires protocol review.'))
-    $findings.Add((New-Finding 'OperationsAndDocumentation' 'MANUAL' 'Review sign-in evidence, Conditional Access, TLS configuration, approval, business/support contacts and delivery form.'))
     $statuses = @($findings | ForEach-Object { Get-Str $_ 'status' })
-    $overall = if ($statuses -contains 'FAIL') { 'FAIL' } elseif ($statuses -contains 'UNKNOWN') { 'UNKNOWN' } elseif ($statuses -contains 'WARN') { 'WARN' } else { 'MANUAL' }
+    $overall = if ($statuses -contains 'FAIL') { 'FAIL' } elseif ($statuses -contains 'UNKNOWN') { 'UNKNOWN' } elseif ($statuses -contains 'WARN') { 'WARN' } else { 'PASS' }
     return [ordered]@{
         displayName = Get-Str $Principal 'displayName'; servicePrincipalId = Get-Str $Principal 'id'
         appId = Get-Str $Principal 'appId'; accountEnabled = Get-Val $Principal 'accountEnabled'
@@ -264,4 +260,5 @@ function Convert-CsvText {
     return $Value
 }
 
+. (Join-Path $PSScriptRoot 'Report.Rules.ps1')
 . (Join-Path $PSScriptRoot 'Report.Governance.ps1')
