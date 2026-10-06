@@ -43,3 +43,5 @@ Set a `require...` setting to `false` to disable that requirement. Numeric setti
 ```
 
 Use `"checks": ["*"]` to exclude every check for that application. Excluded checks remain visible as SKIPPED with the reason; applications remain in the inventory. Rules and exclusions are saved with each report and shown in the tenant entry. No exclusions are enabled by default.
+
+Developer handover and script responsibilities: [scripts/README.md](scripts/README.md).
