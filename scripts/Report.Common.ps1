@@ -24,6 +24,14 @@ function Get-Str {
     return [string]$value
 }
 
+#= Validate local rendering prerequisites before starting a long Graph collection
+function Assert-ReportPrerequisites {
+    Get-Command python -ErrorAction Stop | Out-Null
+    foreach ($relativePath in @('render_report.py', 'render_html_report.py', 'templates/report.html')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $relativePath) -PathType Leaf)) { throw "Missing report file: $relativePath. Copy the complete project before running; no inventory requests have been made." }
+    }
+}
+
 #= Phase logging
 function Write-ReportLog {
     param([string]$Message, [ConsoleColor]$Color = 'Cyan')

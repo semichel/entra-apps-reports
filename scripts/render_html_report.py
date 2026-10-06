@@ -117,5 +117,4 @@ def render(report, now=None):
     payload = payload.replace('<', '\\u003c').replace('>', '\\u003e').replace('\u2028', '\\u2028').replace('\u2029', '\\u2029')
     output = template[:assignments[-1].end()] + payload + template[sentinel.end():]
     output = output.replace('</head>', '<style>.prose{max-width:100%;min-width:0}.prose table{display:block;max-width:100%;overflow-x:auto}</style></head>')
-    license_text = (Path(__file__).parent.parent / 'THIRD-PARTY-NOTICES.txt').read_text(encoding='utf-8')
-    return '<!-- Third-party report interface notice\n' + license_text + '\n-->\n' + output
+    return output

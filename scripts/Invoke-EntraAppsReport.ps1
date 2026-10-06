@@ -21,7 +21,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Report.Common.ps1')
 if ($TenantId -eq [guid]::Empty) { throw 'Supply the intended tenant ID.' }
 Write-Host ('[{0:HH:mm:ss}] Checking Python and Microsoft Graph module.' -f [DateTimeOffset]::Now) -ForegroundColor Cyan
-Get-Command python -ErrorAction Stop | Out-Null
+Assert-ReportPrerequisites
 Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
 $connection = @{
     TenantId = $TenantId.ToString()

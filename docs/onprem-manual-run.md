@@ -62,6 +62,14 @@ Each successful run replaces the files in `reports\latest`. To retain separate r
 
 ## Troubleshooting
 
+If collection completed but rendering failed, keep `reports\latest\report.json`. Restore any missing script/template files, then recreate HTML without signing in or collecting again:
+
+```powershell
+python .\scripts\render_report.py --report .\reports\latest\report.json --output .\reports\latest\report.html
+```
+
+This recreates HTML only. Normal runs now check required rendering files before collecting inventory.
+
 - **Administrator approval required:** delegated Graph consent is missing; Global Reader cannot grant that consent.
 - **Interactive/broker sign-in fails:** retry with `-UseDeviceCode` if your organization permits that method.
 - **Tenant mismatch:** use the intended production Tenant ID and select the account in that tenant.

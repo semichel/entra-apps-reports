@@ -35,4 +35,4 @@ The collector uses Graph GET requests. Credential values and private keys are no
 
 PowerShell 7 and Python 3 are required. The workflow installs Microsoft Graph Authentication and authenticates using GitHub federation. Artifact retention follows the GitHub repository setting. Generated output in `reports/` is ignored by Git.
 
-Required third-party notices are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt).
+Attribution for the bundled report interface is embedded in the HTML template and generated report.

@@ -6,7 +6,7 @@ To run directly on an on-premises Windows server without GitHub, use [the manual
 
 ## 1. Put the report in your company repository
 
-Use your existing `saabgroup/entra-app_registration_report` repository on `saabgroup.ghe.com`, or another approved private/internal company repository. Copy `scripts/`, `config/`, `docs/`, `README.md`, `.gitignore` and `THIRD-PARTY-NOTICES.txt`, plus `.github/workflows/report.yml`. You can also copy `Start-TestRun.ps1` for optional local testing; the GitHub job does not use it.
+Use your existing `saabgroup/entra-app_registration_report` repository on `saabgroup.ghe.com`, or another approved private/internal company repository. Copy `scripts/`, `config/`, `docs/`, `README.md` and `.gitignore`, plus `.github/workflows/report.yml`. You can also copy `Start-TestRun.ps1` for optional local testing; the GitHub job does not use it.
 
 When replacing the old report, remove its `.github/workflows/main.yml` so there is only one report workflow. Alternatively, replace the contents of the existing `main.yml` with our `report.yml` and keep that filename; do not also add `report.yml`. The old root `app_reg.ps1` is no longer used and can be removed. Preserve any unrelated company-required repository files and settings.
 

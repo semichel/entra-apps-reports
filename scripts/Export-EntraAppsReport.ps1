@@ -18,6 +18,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Report.Common.ps1')
 . (Join-Path $PSScriptRoot 'Report.Deployment.ps1')
+Assert-ReportPrerequisites
 $script:LogPath = if ($env:IACPORTAL_LOG) { $env:IACPORTAL_LOG } else { Join-Path ([IO.Path]::GetTempPath()) ('entra-apps-report-{0}.log' -f [guid]::NewGuid()) }
 $deployment = Read-ReportDeployment $ConfigPath -TenantId $TenantId -ClientId $ClientId
 $TenantId = Get-Str $deployment 'tenantId'
