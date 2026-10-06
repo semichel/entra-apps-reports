@@ -8,8 +8,8 @@ permissions:
 env:
   POWERSHELL_TELEMETRY_OPTOUT: 1
   AZURE_POWERSHELL_TELEMETRY_OPTOUT: 1
-  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || vars.AZURE_TENANT_ID }}
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID || vars.AZURE_CLIENT_ID }}
 jobs:
   report:
     runs-on: ubuntu-latest
@@ -24,6 +24,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
+          foreach ($name in @('AZURE_TENANT_ID', 'AZURE_CLIENT_ID')) {
+              $value = [Environment]::GetEnvironmentVariable($name)
+              $parsed = [guid]::Empty
+              if (-not [guid]::TryParse($value, [ref]$parsed) -or $parsed -eq [guid]::Empty) {
+                  throw "$name is missing or invalid. Set it as a repository Actions secret or variable under Settings > Secrets and variables > Actions. Organization secrets must allow this repository. Environment secrets require the job to use that environment."
+              }
+          }
           ./scripts/Validate-ProductionConfig.ps1
           if ($env:GITHUB_REF -ne 'refs/heads/main') { throw 'Select the main branch.' }
           $env:GH_HOST = ([uri]$env:GITHUB_SERVER_URL).Host
@@ -38,8 +45,8 @@ jobs:
       - name: Federated reader login
         uses: azure/login@v2
         with:
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          client-id: ${{ env.AZURE_CLIENT_ID }}
           allow-no-subscriptions: true
           enable-AzPSSession: true
       - name: Generate report

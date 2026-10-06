@@ -9,7 +9,7 @@ HTML-rapporten och Actions-sammanfattningen visar statistik per kontroll: PASS, 
 Filtertaggarna visar kontrollens namn och resultat, exempelvis `EnterpriseAdminOwner: FAIL` eller `RegistrationDescription: WARN`.
 Tagglistan anpassas efter status, kategori, severity och sökning. Failed visar FAIL-taggar, Passed visar PASS-taggar och Investigate visar WARN/UNKNOWN. Taggval som inte längre passar urvalet rensas automatiskt.
 
-Normal körning: **Actions → Entra application report → Run workflow**, från `main`. Rapporten visas i Actions-sammanfattningen och hela HTML/JSON/CSV-resultatet finns i körningens artifact. Tenant och körande app anges av repository-secrets `AZURE_TENANT_ID` och `AZURE_CLIENT_ID`.
+Normal körning: **Actions → Entra application report → Run workflow**, från `main`. Rapporten visas i Actions-sammanfattningen och hela HTML/JSON/CSV-resultatet finns i körningens artifact. Tenant och körande app anges av repository-secrets eller Actions Variables `AZURE_TENANT_ID` och `AZURE_CLIENT_ID` under **Settings → Secrets and variables → Actions**. Secrets prioriteras om båda finns. Tenant-ID är katalogens ID; client-ID är rapportappens Application (client) ID, inte dess Object ID. Organization-secrets måste vara tillgängliga för repot; environment-secrets kräver att jobbet kopplas till samma environment.
 
 ## Config och kontroller
 
