@@ -1,46 +1,57 @@
 # Entra Apps Reports
 
-Read-only production reports for Microsoft Entra applications.
+Inventerar organisationens Entra-appregistreringar och enterprise-appar/SPN: ägare, beskrivningar, certifikat/hemligheters datum, tilldelningar, API-behörigheter, federation och policyer. Inbyggda Microsoft-appar undantas. Körningen läser konfiguration och skapar HTML, JSON och CSV; inga sign-in- eller auditloggar hämtas.
 
-## Set up
+## GitHub Actions
 
-1. Copy the project into your approved private/internal company GitHub repository, replacing the old report workflow.
-2. Follow [the manual deployment guide](docs/production-deployment.md) to reuse or configure the reader app, Graph read permissions and branch-based OIDC federation.
-3. Set repository secrets `AZURE_TENANT_ID` and `AZURE_CLIENT_ID`, just like the existing app-registration report.
-4. Set the tenant display name in [config/production.json](config/production.json), commit to `main`, and select **Actions → Entra application report → Run workflow**.
+Normal körning: **Actions → Entra application report → Run workflow**, från `main`. Rapporten visas i Actions-sammanfattningen och hela HTML/JSON/CSV-resultatet finns i körningens artifact. Tenant och körande app anges av repository-secrets `AZURE_TENANT_ID` och `AZURE_CLIENT_ID`.
 
-One job runs on a GitHub-hosted Ubuntu runner. It uses `azure/login@v2`, Az and a Graph access token, following the existing work setup. No GitHub environment or client-secret value is required. Blank or invalid reader IDs prevent authentication; the collector verifies the signed-in tenant and client before requesting inventory.
+## Config och kontroller
 
-The workflow runs only from `main` and only when manually started. Replace the existing report workflow so the company repository contains one report workflow. Keep the existing repository secrets and matching main-branch federation, and verify the full report's Graph read permissions before the first run.
+[config/production.json](config/production.json) styr bedömningen. `tenantDisplayName` är rapportens visningsnamn, inte valet av tenant. Ändra fälten under `rules` för era krav:
 
-## Report
+| Fält | Funktion och standardkrav |
+|---|---|
+| `ownerUpnPrefix`, `minimumAdminOwners` | Minst **1** användarägare med UPN-prefix **azadmu**, separat på SPN och appregistrering. Kontroller: `EnterpriseAdminOwner`, `RegistrationAdminOwner`. |
+| `requireDescriptions` | Beskrivning krävs på båda objekten; tomt eller blanksteg ger varning. Ingen standardtext krävs. Kontroller: `EnterpriseDescription`, `RegistrationDescription`. |
+| `requireAssignment` | Tilldelning måste krävas. Kontroll: `AssignmentRequired`. |
+| `requireGroupAssignment` | Minst en tilldelad grupp; direkta användare får också finnas. Kontroll: `GroupAssignmentsPreferred`. |
+| `requireRedirectUris`, `allowLocalhostHttp` | Minst en HTTPS-redirect. HTTP till localhost tillåts som standard. Kontroll: `RedirectUriSecurity`. |
+| `maxSecretLifetimeDays`, `maxCertificateLifetimeDays` | Högst **90** respektive **365** dagars livslängd för befintliga credentials. Utgångna eller ogiltiga datumperioder ger fel. Kontroll: `CredentialDates`. |
+| `credentialWarningDays` | Varning vid **30** eller färre hela dagar kvar. Framtida startdatum ger också varning. |
 
-For a local test with your own Global Reader account, run `./Start-TestRun.ps1` in PowerShell 7 from the project root. It asks for the tenant ID and starts interactive sign-in. The HTML/JSON/CSV report is written locally. Prerequisites and device-code sign-in are described in [the manual PowerShell guide](docs/onprem-manual-run.md).
+Kravfält kan sättas till `false` för att stänga av kontrollen. Numeriska värden är heltal mellan 1 och 10000. Saknade credentials eller registrering i en annan tenant visas som `NOT_APPLICABLE`; saknade uppgifter som behövs för bedömning ger `UNKNOWN`. API-behörigheter, federation och policyer visas som information.
 
-If collection completed but HTML rendering failed, run `./Render-Report.ps1` to regenerate HTML and CSV from the saved JSON without another Graph collection.
+**Passed** betyder att aktiva, tillämpliga kontroller passerar. Fel ger **Failed**; varningar eller okända resultat ger **Investigate**. Rapporten har inga manuella kontrollpunkter.
 
-The Actions Summary contains totals, an application list and expandable details. Each run uploads a self-contained HTML report, JSON evidence and CSV files for findings, owners, assignments and credential dates.
+`disabledChecks` stänger av namngivna kontroller för alla appar, exempelvis `["GroupAssignmentsPreferred"]`. `exclusions` ger undantag för en app via dess **Application (client) ID**:
 
-The HTML report includes application owners, certificate/secret expiry, assignments, granted and requested API permissions, federation and policy observations. Large inventories retain all evidence in the artifact when GitHub's summary limit restricts expanded details.
+```json
+"exclusions": [
+  {
+    "appId": "11111111-2222-3333-4444-555555555555",
+    "checks": ["EnterpriseDescription", "RegistrationDescription"],
+    "reason": "Godkänt undantag enligt beställning 12345"
+  }
+]
+```
 
-Kontroller, godkännandekrav, ändringsbara regler och undantag beskrivs i [regelöversikten](docs/report-rules.md). Ändra config/production.json för era krav. Undantagna kontroller visas som Skipped med motivering; apparna finns kvar i inventeringen.
+Använd `"checks": ["*"]` för hela appen. Undantag visas som **Skipped** med motivering; appen finns kvar i inventeringen. Inga undantag är aktiverade från början. Regler och undantag sparas med rapporten och visas under tenantposten.
 
-The inventory includes your organization's and third-party enterprise apps and local registrations. First-party Microsoft enterprise apps are excluded using their owning tenant IDs, not their names. Microsoft API/resource metadata is still read in the background to resolve granted permissions such as Microsoft Graph roles. Apps with unknown owning tenants are retained rather than guessed away.
+## Testa lokalt/on-prem
 
-The collector uses Graph GET requests. Credential values and private keys are not exported. Optional evidence failures appear as unavailable. Findings describe automatically evaluated configuration observations.
+Kör från repots rot i PowerShell 7 med ditt eget Global Reader-konto:
 
-`Passed` means the automatic configuration checks passed. Only automatic checks are included. When no credential metadata exists, the credential check is not applicable. Failed checks produce `Failed`, while warnings or unknown results produce `Investigate`. A configuration pass does not certify working sign-in or overall compliance.
+```powershell
+.\Start-TestRun.ps1 -TenantId 'DIN-TENANT-ID'
+```
 
-Sign-in logs and directory audit logs are not collected. `AuditLog.Read.All` is not required. The report is a configuration snapshot with observations; it does not send alerts or monitor changes between runs.
+Lägg till `-UseDeviceCode` för device-inloggning. Resultatet finns i `reports/latest/report.html` med JSON och CSV i samma mapp.
 
-## Contents
+För att bara rendera sparad data med aktuell config, utan inloggning eller Graph-hämtning:
 
-- `config/`: production settings.
-- `scripts/`: collector, config validation and report generation.
-- `scripts/templates/`: bundled report interface and summary template.
-- `docs/`: manual deployment guide.
-- `.github/workflows/report.yml`: one manually triggered production workflow.
+```powershell
+.\Render-Report.ps1 -ConfigPath .\config\production.json
+```
 
-PowerShell 7 is required. HTML and Actions summaries are generated directly in PowerShell; Python is not required. The workflow installs Microsoft Graph Authentication and authenticates using GitHub federation. Artifact retention follows the GitHub repository setting. Generated output in `reports/` is ignored by Git.
-
-Attribution for the bundled report interface is embedded in the HTML template and generated report.
+Utan `-ConfigPath` använder renderingen reglerna som sparats i rapporten. Ändringar i Entra kräver en ny insamling.
