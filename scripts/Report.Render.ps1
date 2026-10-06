@@ -149,6 +149,25 @@ function New-ReportEntry {
     }
 }
 
+#= Count each application once per configuration check
+function Get-ReportCheckStatistics {
+    param($Apps)
+    $checks = @{}
+    $Apps | ForEach-Object {
+        $seen = @{}
+        @((Get-Val $_ 'findings')) | Where-Object { $null -ne $_ } | ForEach-Object {
+            $rule = Get-Str $_ 'rule'
+            if (-not $rule -or $seen.ContainsKey($rule)) { return }
+            $seen[$rule] = $true
+            if (-not $checks.ContainsKey($rule)) { $checks[$rule] = [ordered]@{ Check = $rule; PASS = 0; FAIL = 0; WARN = 0; UNKNOWN = 0; SKIPPED = 0; NOT_APPLICABLE = 0 } }
+            $status = Get-Str $_ 'status'
+            if ($status -notin @('PASS','FAIL','WARN','UNKNOWN','SKIPPED','NOT_APPLICABLE')) { $status = 'UNKNOWN' }
+            $checks[$rule][$status]++
+        }
+    }
+    return @($checks.Keys | Sort-Object | ForEach-Object { $checks[$_] })
+}
+
 #= Shared application entries and counters for HTML and Actions
 function Get-ReportResults {
     param($Report, [DateTimeOffset]$Now = [DateTimeOffset]::UtcNow)
@@ -219,6 +238,7 @@ function Get-ReportResults {
         CurrentVersion = @{ Major = 1; Minor = 0; Build = 0; Revision = -1 }; LatestVersion = 'Unknown'
         SystemInfo = @{}; PowerShellInfo = @{}; LoadedModules = @(); InvokeCommand = 'Read-only Entra application inventory adapter'
         MgContext = $null; PesterConfig = $null; ReportConfig = $null; Tests = $tests.ToArray(); Blocks = $blocks.ToArray()
+        CheckStatistics = @(Get-ReportCheckStatistics $apps)
         EndOfJson = 'EndOfJson'; OutputFiles = @{}
     }
     foreach ($status in @('Failed','Passed','Error','Investigate','Skipped','NotRun')) {
@@ -232,6 +252,11 @@ function Get-ReportResults {
 function Export-ReportHtml {
     param($Report, [string]$OutputPath)
     $template = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'templates/report.html'))
+    $component = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'templates/check-statistics.js'))
+    $anchor = '(0,z.jsx)(uHe,{TestResults:e,selectedStatus:t,onStatusChange:n})'
+    if ([regex]::Matches($template, [regex]::Escape($anchor)).Count -ne 1) { throw 'Report template has no unique statistics insertion point.' }
+    $template = $template.Replace('function dHe(){', $component + "`nfunction dHe(){")
+    $template = $template.Replace($anchor, '(0,z.jsxs)(z.Fragment,{children:[(0,z.jsx)(EntraCheckStatistics,{rows:e.CheckStatistics||[]}),' + $anchor + ']})')
     $sentinel = [regex]::Match($template, 'EndOfJson:(?:"EndOfJson"|`EndOfJson`)\}')
     if (-not $sentinel.Success) { throw 'Report template has no result placeholder.' }
     $assignments = [regex]::Matches($template.Substring(0, $sentinel.Index), '(?:var|const|let)\s+\w+\s*=')
@@ -249,6 +274,10 @@ function Export-ReportSummary {
     param($Report, [string]$ArtifactUrl, [string]$OutputPath)
     $now = [DateTimeOffset]::UtcNow
     $results = Get-ReportResults $Report $now
+    $checkRows = [Collections.Generic.List[object]]::new()
+    foreach ($check in $results.CheckStatistics) {
+        $checkRows.Add(@($check.Check, $check.PASS, $check.FAIL, $check.WARN, $check.UNKNOWN, $check.SKIPPED, $check.NOT_APPLICABLE))
+    }
     $summary = [Text.StringBuilder]::new("| Application / report entry | Severity | Status |`n|---|:---:|:---:|`n")
     $details = [Collections.Generic.List[string]]::new()
     $icons = @{ Passed = '✅'; Failed = '❌'; Investigate = '🔍'; Skipped = '⏭' }
@@ -260,6 +289,7 @@ function Export-ReportSummary {
         $details.Add('<details>' + "`n<summary><strong>" + $icons[$test.Result] + ' ' + $test.Id + ': ' + $title + "</strong></summary>`n`n" + $badge + "`n`n#### Overview`n`n**Category:** " + (Convert-ReportCell $test.Block) + "  `n**Tags:** " + (Convert-ReportCell ($test.Tag -join ', ')) + "`n`n#### Application evidence`n`n" + $content + "`n`nFull raw configuration is available in the HTML report artifact.`n`n</details>`n")
     }
     $template = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'templates/summary.md'))
+    $template = $template.Replace('%CheckStatistics%', (New-ReportSection 'Results by check' @('Check','PASS','FAIL','WARN','UNKNOWN','Excluded / disabled','Not applicable') $checkRows 'No configuration checks available.') + "`nEach application is counted once per check. Matching app registrations are included with their enterprise application. Tenant evidence is excluded from these counts.`n")
     foreach ($key in @('TotalCount','PassedCount','FailedCount','InvestigateCount','SkippedCount','NotRunCount','TenantName')) {
         $template = $template.Replace('%' + $key + '%', (Convert-ReportCell $results[$key]))
     }

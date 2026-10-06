@@ -11,6 +11,8 @@ Read-only production application inventory and configuration findings.
 | **%TotalCount%** | **%PassedCount%** | **%FailedCount%** | **%InvestigateCount%** | **%SkippedCount%** |**%NotRunCount%** |
 
 
+%CheckStatistics%
+
 ## Application summary
 
 %TestSummary%
