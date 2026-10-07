@@ -14,3 +14,26 @@ body { background: #f1f4f8; color: #172554; }
 .dark [class~="dark:text-blue-400"], .dark [class~="dark:text-indigo-400"] { color: #b8cbed !important; }
 .prose { max-width: 100%; min-width: 0; }
 .prose table { display: block; max-width: 100%; overflow-x: auto; }
+
+/* Give the application details sheet most of the screen on desktop. */
+[role="dialog"][class~="lg:max-w-4xl"] {
+    width: 94vw !important;
+    max-width: 1800px !important;
+    padding: 2rem;
+}
+[role="dialog"][class~="lg:max-w-4xl"] .prose {
+    max-width: none !important;
+    width: 100%;
+    line-height: 1.7;
+}
+[role="dialog"][class~="lg:max-w-4xl"] .prose th,
+[role="dialog"][class~="lg:max-w-4xl"] .prose td {
+    padding: 0.75rem 1rem;
+    min-width: 8rem;
+}
+@media (max-width: 640px) {
+    [role="dialog"][class~="lg:max-w-4xl"] {
+        width: 100vw !important;
+        padding: 1.5rem 1rem;
+    }
+}
