@@ -137,6 +137,7 @@ function Update-AppGovernance {
     $App['findings'] = $findings.ToArray()
     $statuses = @($findings | ForEach-Object { Get-Str $_ 'status' })
     if ($App.Contains('manualValidationRequired')) { $App.Remove('manualValidationRequired') }
+    if ($App.Contains('delegatedConsentGrants')) { $App.Remove('delegatedConsentGrants') }
     $App['status'] = if ($statuses -contains 'FAIL') { 'FAIL' } elseif ($statuses -contains 'UNKNOWN') { 'UNKNOWN' } elseif ($statuses -contains 'WARN') { 'WARN' } elseif ($statuses -contains 'PASS') { 'PASS' } elseif ($statuses -contains 'SKIPPED') { 'SKIPPED' } else { 'UNKNOWN' }
 }
 
@@ -145,6 +146,7 @@ function Update-ReportGovernance {
     param([System.Collections.IDictionary]$Report)
     $configuration = Get-ReportRuleConfiguration (Get-Val $Report 'ruleConfiguration')
     $Report['ruleConfiguration'] = $configuration
+    if ($Report.Contains('tenantEvidence')) { $Report.Remove('tenantEvidence') }
     @((Get-Val $Report 'applications')) | Where-Object { $null -ne $_ } | ForEach-Object { Update-AppGovernance $_ $configuration }
     @((Get-Val $Report 'registrations')) | Where-Object { $null -ne $_ } | ForEach-Object {
         $app = @{ appId = Get-Val $_ 'appId'; registration = $_; credentials = Get-Val $_ 'credentials'; findings = @() }; Update-AppGovernance $app $configuration

@@ -95,12 +95,8 @@ function Get-ReportAppDetails {
         $grant = $_; $resourceId = Get-Str $grant 'resourceId'; $resource = Get-Val $ById $resourceId; $name = Get-Str $grant 'resourceDisplayName'; if (-not $name) { $name = Get-Str $resource 'displayName' }; if (-not $name) { $name = $resourceId }; $permission = Get-Str $grant 'permission'; if (-not $permission) { $permission = Get-Str $grant 'appRoleId' }
         $rows.Add(@($name, 'Application', $permission, 'App-only grant', (Get-Val $grant 'appRoleId')))
     }
-    @((Get-Val (Get-Val $App 'delegatedConsentGrants') 'items')) | Where-Object { $null -ne $_ } | ForEach-Object {
-        $grant = $_; $resourceId = Get-Str $grant 'resourceId'; $name = Get-Str (Get-Val $ById $resourceId) 'displayName'; if (-not $name) { $name = $resourceId }; $consent = if ((Get-Str $grant 'consentType') -eq 'AllPrincipals') { 'Tenant-wide admin consent' } else { 'User-specific consent: ' + (Get-Str $grant 'principalId') }
-        ([string](Get-Val $grant 'scope') -split '\s+') | Where-Object { $_ } | ForEach-Object { $rows.Add(@($name, 'Delegated', $_, $consent, (Get-Val $grant 'id'))) }
-    }
     [void]$text.Append((New-ReportSection 'Granted API permissions' @('Resource API','Type','Granted permission','Consent / grant','Role or grant ID') $rows))
-    foreach ($key in @('applicationPermissionGrants','delegatedConsentGrants')) {
+    foreach ($key in @('applicationPermissionGrants')) {
         if ((Get-Str (Get-Val $App $key) 'status') -ne 'AVAILABLE') { [void]$text.AppendLine($key + ': evidence unavailable.') }
     }
     $rows.Clear()
@@ -112,9 +108,9 @@ function Get-ReportAppDetails {
             $kind = Get-Str $requested 'type'; $permissionId = Get-Str $requested 'id'; $definitionKey = if ($kind -eq 'Role') { 'appRoles' } else { 'oauth2PermissionScopes' }
             $definition = @((Get-Val $resource $definitionKey)) | Where-Object { (Get-Str $_ 'id') -eq $permissionId } | Select-Object -First 1
             $name = Get-Str $definition 'value'; if (-not $name) { $name = $permissionId }
-            $evidenceKey = if ($kind -eq 'Role') { 'applicationPermissionGrants' } else { 'delegatedConsentGrants' }
-            $matches = @((Get-Val (Get-Val $App $evidenceKey) 'items')) | Where-Object { $resourceId -and (Get-Str $_ 'resourceId') -eq $resourceId -and $(if ($kind -eq 'Role') { (Get-Str $_ 'appRoleId') -eq $permissionId } else { ((Get-Str $_ 'scope') -split '\s+') -contains $name }) }
-            $state = if ((Get-Str (Get-Val $App $evidenceKey) 'status') -ne 'AVAILABLE') { 'Grant evidence unavailable' } elseif (-not @($matches).Count) { 'No matching grant observed' } elseif ($kind -eq 'Role') { 'Granted' } elseif (@($matches | Where-Object { (Get-Str $_ 'consentType') -eq 'AllPrincipals' }).Count) { 'Tenant-wide grant observed' } else { 'User-specific grant observed' }
+            $grants = Get-Val $App 'applicationPermissionGrants'
+            $matches = @((Get-Val $grants 'items')) | Where-Object { $resourceId -and (Get-Str $_ 'resourceId') -eq $resourceId -and (Get-Str $_ 'appRoleId') -eq $permissionId }
+            $state = if ($kind -ne 'Role') { 'Delegated consent not collected' } elseif ((Get-Str $grants 'status') -ne 'AVAILABLE') { 'Grant evidence unavailable' } elseif (-not @($matches).Count) { 'No matching grant observed' } else { 'Granted' }
             $resourceName = Get-Str $resource 'displayName'; if (-not $resourceName) { $resourceName = Get-Str $api 'resourceAppId' }
             $rows.Add(@($resourceName, $(if ($kind -eq 'Role') { 'Application' } else { 'Delegated' }), $name, $state, $permissionId))
         }
@@ -196,15 +192,8 @@ function Get-ReportResults {
         $content = Get-ReportAppDetails $app $Now $byId $byAppId
         $tests.Add((New-ReportEntry ($tests.Count + 1) $title $result $category $tags.ToArray() $content ("`n### Complete application configuration`n" + (Convert-ReportEvidence $app))))
     }
-    $tenant = @{}
-    $consent = Get-Val (Get-Val $Report 'tenantEvidence') 'delegatedConsentGrants'
-    if ($null -ne $consent) { $tenant['delegatedConsentGrants'] = $consent }
     $rows = [Collections.Generic.List[object]]::new()
-    foreach ($key in $tenant.Keys) {
-        $value = Get-Val $tenant $key; if ($value -is [Collections.IDictionary]) { $rows.Add(@($key, (Get-Val $value 'status'), @(@((Get-Val $value 'items')) | Where-Object { $null -ne $_ }).Count, (Get-Val $value 'reason'))) }
-    }
-    $coverage = New-ReportSection 'Evidence coverage' @('Evidence','Availability','Records','Reason') $rows
-    $rows.Clear()
+    $coverage = ''
     $configuration = Get-Val $Report 'ruleConfiguration'
     foreach ($key in $configuration.rules.Keys) {
         $rows.Add(@($key, (Get-Val $configuration.rules $key)))
@@ -216,7 +205,7 @@ function Get-ReportResults {
     }
     $coverage += New-ReportSection 'Configured app exclusions' @('App ID','Checks','Reason') $rows 'No app exclusions configured.'
     $coverage += "`nDisabled checks: " + (Convert-ReportCell ($configuration.disabledChecks -join ', ')) + "`n"
-    $tests.Add((New-ReportEntry ($tests.Count + 1) 'Tenant evidence and report scope' 'Investigate' 'Tenant evidence' @('Report scope') $coverage ("`n### Complete tenant consent evidence`n" + (Convert-ReportEvidence $tenant))))
+    $tests.Add((New-ReportEntry ($tests.Count + 1) 'Report rules and scope' 'Investigate' 'Tenant evidence' @('Report scope') $coverage ("`n### Applied report configuration`n" + (Convert-ReportEvidence $configuration))))
     $blocks = [Collections.Generic.List[object]]::new()
     $tests | Group-Object Block | Sort-Object Name | ForEach-Object {
         $group = $_
@@ -301,12 +290,12 @@ function Export-ReportSummary {
         $details.Add('<details>' + "`n<summary><strong>" + $icons[$test.Result] + ' ' + $test.Id + ': ' + $title + "</strong></summary>`n`n" + $badge + "`n`n#### Overview`n`n**Category:** " + (Convert-ReportCell $test.Block) + "  `n**Tags:** " + (Convert-ReportCell ($test.Tag -join ', ')) + "`n`n" + $content + "`n`nFull raw configuration is available in the HTML report artifact.`n`n</details>`n")
     }
     $template = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'templates/summary.md'))
-    $template = $template.Replace('%CheckStatistics%', (New-ReportSection 'Results by check' @('Check','PASS','FAIL','WARN','UNKNOWN','Excluded / disabled','Not applicable') $checkRows 'No configuration checks available.') + "`nEach application is counted once per check. Matching app registrations are included with their enterprise application. Tenant evidence is excluded from these counts.`n")
+    $template = $template.Replace('%CheckStatistics%', (New-ReportSection 'Results by check' @('Check','PASS','FAIL','WARN','UNKNOWN','Excluded / disabled','Not applicable') $checkRows 'No configuration checks available.') + "`nEach application is counted once per check. Matching app registrations are included with their enterprise application. Report scope is excluded from these counts.`n")
     foreach ($key in @('TotalCount','PassedCount','FailedCount','InvestigateCount','SkippedCount','NotRunCount','TenantName')) {
         $template = $template.Replace('%' + $key + '%', (Convert-ReportCell $results[$key]))
     }
     $template = $template.Replace('%TestDate%', (Convert-ReportCell $results.ExecutedAt) + ' (UTC)').Replace('%TestSummary%', $summary.ToString().TrimEnd())
-    $intro = '**Tenant ID:** ' + (Convert-ReportCell (Get-Val $Report 'tenantId')) + "`n`n**" + @(@((Get-Val $Report 'applications')) | Where-Object { $null -ne $_ }).Count + ' enterprise applications · ' + @(@((Get-Val $Report 'registrations')) | Where-Object { $null -ne $_ }).Count + " local registrations.** Report totals also include one tenant evidence entry.`n`n[Download the interactive HTML report and JSON/CSV evidence](" + $ArtifactUrl + "). Extract the artifact and open report.html.`n`n"
+    $intro = '**Tenant ID:** ' + (Convert-ReportCell (Get-Val $Report 'tenantId')) + "`n`n**" + @(@((Get-Val $Report 'applications')) | Where-Object { $null -ne $_ }).Count + ' enterprise applications · ' + @(@((Get-Val $Report 'registrations')) | Where-Object { $null -ne $_ }).Count + " local registrations.** Report totals also include one report scope entry.`n`n[Download the interactive HTML report and JSON/CSV evidence](" + $ArtifactUrl + "). Extract the artifact and open report.html.`n`n"
     $template = $template.Replace('## Application summary', $intro + '## Application summary')
     $budget = 1MB - [Text.Encoding]::UTF8.GetByteCount($template) - 2048
     $included = [Text.StringBuilder]::new(); $count = 0

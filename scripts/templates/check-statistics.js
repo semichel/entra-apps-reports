@@ -9,7 +9,7 @@ function EntraCheckStatistics({rows}) {
         className: "mb-6 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6",
         children: [
             (0,z.jsx)("h2", {className: "text-lg font-semibold mb-2", children: "Results by check"}),
-            (0,z.jsx)("p", {className: "text-sm text-gray-500 dark:text-gray-400 mb-4", children: "Each application is counted once per check. Matching app registrations are included with their enterprise application. Tenant evidence is excluded."}),
+            (0,z.jsx)("p", {className: "text-sm text-gray-500 dark:text-gray-400 mb-4", children: "Each application is counted once per check. Matching app registrations are included with their enterprise application. Report scope is excluded."}),
             (0,z.jsx)("div", {style: {overflowX: "auto"}, children:
                 (0,z.jsxs)("table", {style: {width: "100%", textAlign: "left", borderCollapse: "collapse"}, children: [
                     (0,z.jsx)("thead", {children: (0,z.jsx)("tr", {children: columns.map(([key,label]) =>

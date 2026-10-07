@@ -4,31 +4,14 @@ $ErrorActionPreference = 'Stop'
 #= Optional evidence never masquerades as an empty successful query
 function Get-OptionalEvidence {
     param([string]$Uri)
-    $path = ([uri]$Uri).AbsolutePath
-    $tenantQuery = $path -notmatch '/(applications|servicePrincipals)/'
-    $timer = [Diagnostics.Stopwatch]::StartNew()
-    if ($tenantQuery) { Write-ReportLog ('Loading tenant evidence: {0}' -f $path) }
     try {
         $items = @(Invoke-MgGetAll $Uri)
-        if ($tenantQuery) { Write-ReportLog ('Loaded {0}: {1} records in {2:N1}s.' -f $path, $items.Count, $timer.Elapsed.TotalSeconds) Green }
         return [ordered]@{ status = 'AVAILABLE'; items = $items; reason = $null }
     }
     catch {
         $status = Get-Val (Get-Val $_.Exception 'Response') 'StatusCode'
-        if ($tenantQuery) { Write-ReportLog ('Tenant evidence unavailable at {0} (HTTP {1}) after {2:N1}s.' -f $path, $status, $timer.Elapsed.TotalSeconds) Yellow }
         return [ordered]@{ status = 'UNAVAILABLE'; items = @(); reason = ("Graph query failed (HTTP {0}); access, licensing or endpoint support must be checked." -f $status) }
     }
-}
-
-#= Index tenant evidence once instead of scanning every record for every application
-function Group-EvidenceByKey {
-    param($Items, [string]$Key)
-    $index = @{}
-    foreach ($item in $Items) {
-        $value = Get-Str $item $Key; if ([string]::IsNullOrWhiteSpace($value)) { continue }
-        if (-not $index.ContainsKey($value)) { $index[$value] = [System.Collections.Generic.List[object]]::new() }; $index[$value].Add($item)
-    }
-    return $index
 }
 
 #= Supplement the core inventory using read-only Graph evidence
@@ -37,7 +20,7 @@ function Add-ExtendedEvidence {
         [System.Collections.IDictionary]$Report,
         [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Registrations
     )
-    Write-ReportLog 'Collecting app registration and consent evidence.'
+    Write-ReportLog 'Collecting app registration and permission evidence.'
     Write-ReportLog ('Reusing {0} registrations from the initial inventory; no second registration download.' -f $Registrations.Count)
     $principals = @(Invoke-MgGetAll 'https://graph.microsoft.com/v1.0/servicePrincipals?$select=id,appId,displayName,appOwnerOrganizationId,publisherName,servicePrincipalType,appRoles,oauth2PermissionScopes,description,homepage,tags,info')
     $principalIndex = @{}
@@ -52,16 +35,10 @@ function Add-ExtendedEvidence {
     }
     Write-Progress -Id 1 -Activity 'Registration owners and federation' -Completed
     $Report['registrations'] = @($registrationIndex.Values)
-    Write-ReportLog 'Loading delegated consent. Sign-in and audit logs are not collected.'
-    $Report['tenantEvidence'] = [ordered]@{
-        delegatedConsentGrants = Get-OptionalEvidence 'https://graph.microsoft.com/v1.0/oauth2PermissionGrants'
-    }
     $index = 0
-    Write-ReportLog ('Tenant evidence collected: {0} consent grants. Building lookup once.' -f $Report['tenantEvidence']['delegatedConsentGrants']['items'].Count)
-    $consentByPrincipal = Group-EvidenceByKey (Get-Val (Get-Val $Report['tenantEvidence'] 'delegatedConsentGrants') 'items') 'clientId'
     foreach ($app in @(Get-Val $Report 'applications')) {
         $index++; Write-CollectionProgress 'Application permissions and evidence' $index @(Get-Val $Report 'applications').Count (Get-Str $app 'displayName')
-        Add-AppEvidence $app $principalIndex $registrationIndex (Get-Val $Report 'tenantEvidence') $consentByPrincipal
+        Add-AppEvidence $app $principalIndex $registrationIndex
     }
     Write-Progress -Id 1 -Activity 'Application permissions and evidence' -Completed
     $Report['schemaVersion'] = '2.0'
@@ -83,9 +60,9 @@ function Get-RegistrationEvidence {
     return $result
 }
 
-#= Enrich an application with permissions and consent evidence
+#= Enrich an application with permissions evidence
 function Add-AppEvidence {
-    param([System.Collections.IDictionary]$App, $PrincipalIndex, $RegistrationIndex, $TenantEvidence, $ConsentByPrincipal)
+    param([System.Collections.IDictionary]$App, $PrincipalIndex, $RegistrationIndex)
     $id = Get-Str $App 'servicePrincipalId'
     $appId = Get-Str $App 'appId'
     $principal = Get-Val $PrincipalIndex $id
@@ -94,7 +71,6 @@ function Add-AppEvidence {
     }
     $App['registration'] = Get-Val $RegistrationIndex $appId
     $App['applicationPermissionGrants'] = Get-ApplicationPermissionEvidence $id $PrincipalIndex
-    $App['delegatedConsentGrants'] = [ordered]@{ status = Get-Str (Get-Val $TenantEvidence 'delegatedConsentGrants') 'status'; items = @((Get-Val $ConsentByPrincipal $id) | Where-Object { $null -ne $_ }) }
     $App['scopeNote'] = 'Catalog observation; apply the supplied SSO requirements only after confirming this is an in-scope production SSO application. Platform/resource apps may legitimately differ.'
 }
 

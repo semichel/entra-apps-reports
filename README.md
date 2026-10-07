@@ -1,6 +1,6 @@
 # Entra Apps Reports
 
-Read-only inventory and configuration checks for Entra app registrations and enterprise applications. Reports include owners, descriptions, certificate and secret dates, assignments, API permissions, consent and federation. Microsoft-owned enterprise applications are excluded. Sign-in and audit logs are not collected.
+Read-only inventory and configuration checks for Entra app registrations and enterprise applications. Reports include owners, descriptions, certificate and secret dates, assignments, requested API permissions, granted application permissions and federation. Microsoft-owned enterprise applications are excluded. Sign-in and audit logs are not collected.
 
 ## Run and view
 
@@ -10,7 +10,7 @@ Filter tags identify the check and result, for example `EnterpriseAdminOwner: FA
 
 The workflow uses federated authentication. Set `AZURE_TENANT_ID` and `AZURE_CLIENT_ID` as repository Actions secrets or variables under **Settings → Secrets and variables → Actions**. Secrets take priority. Client ID means the report application's **Application (client) ID**, not its Object ID. Organization secrets must allow this repository; environment secrets require the job to target that environment. The repository must be private or internal.
 
-The report application uses Microsoft Graph **Application permissions** `Application.Read.All` and `Directory.Read.All`, with tenant admin consent. Policy access is not required: Conditional Access and claims-mapping policies are not collected.
+The report application uses Microsoft Graph **Application permissions** `Application.Read.All` and `User.ReadBasic.All`, with tenant admin consent. Basic user access provides owner names and UPNs without access to full user profiles. Directory-wide access and policy access are not required. Delegated consent grants, Conditional Access policies and claims-mapping policies are not collected. Requested delegated permissions are shown with consent marked as not collected.
 
 ## Configuration
 
