@@ -80,9 +80,9 @@ function Get-ReportAppDetails {
     [void]$text.Append((New-ReportSection 'Application profile' @('Property','Value') $rows))
     $rows.Clear()
     foreach ($source in @(@{ name = 'Enterprise application'; items = Get-Val $App 'owners' }, @{ name = 'App registration'; items = Get-Val (Get-Val $registration 'owners') 'items' })) {
-        @($source.items) | Where-Object { $null -ne $_ } | ForEach-Object { $rows.Add(@($source.name, (Get-Val $_ 'displayName'), (Get-Val $_ 'userPrincipalName'), ([string](Get-Val $_ '@odata.type')).Replace('#microsoft.graph.', ''), (Get-Val $_ 'id'))) }
+        @($source.items) | Where-Object { $null -ne $_ } | ForEach-Object { $rows.Add(@($source.name, (Get-Val $_ 'displayName'), (Get-Val $_ 'userPrincipalName'), (Get-Val $_ 'userEmail'), (Get-Val $_ 'employeeId'), (Get-Val $_ 'contactMatchStatus'), ([string](Get-Val $_ '@odata.type')).Replace('#microsoft.graph.', ''), (Get-Val $_ 'id'))) }
     }
-    [void]$text.Append((New-ReportSection 'Owners' @('Source','Name','UPN','Type','Object ID') $rows 'No owners recorded in the available evidence.'))
+    [void]$text.Append((New-ReportSection 'Owners' @('Source','Name','Owner account','User email','Employee ID','Contact match','Type','Object ID') $rows 'No owners recorded in the available evidence.'))
     if ((Get-Str (Get-Val $registration 'owners') 'status') -eq 'UNAVAILABLE') { [void]$text.AppendLine('App registration owner evidence is unavailable.') }
     $rows.Clear()
     @((Get-Val $App 'credentials')) | Where-Object { $null -ne $_ } | ForEach-Object {
@@ -320,6 +320,7 @@ function Export-DetailCsv {
 #= Export one evidence collection without formula interpretation
 function Export-EvidenceKindCsv {
     param($Report, [string]$OutputDirectory, [string]$Kind)
+    if ($Kind -eq 'owners') { Export-OwnerContactsCsv $Report $OutputDirectory; return }
     $rows = @((Get-Val $Report 'applications') | ForEach-Object {
         $app = $_
         @(Get-Val $app $Kind) | Where-Object { $null -ne $_ } | ForEach-Object {
@@ -334,4 +335,25 @@ function Export-EvidenceKindCsv {
     $columns = @($rows | ForEach-Object { $_.PSObject.Properties.Name } | Select-Object -Unique)
     if ($rows.Count) { $rows | Select-Object -Property $columns | Export-Csv -LiteralPath (Join-Path $OutputDirectory ($Kind + '.csv')) -NoTypeInformation -Encoding utf8 }
     else { Set-Content -LiteralPath (Join-Path $OutputDirectory ($Kind + '.csv')) -Value '"Application","AppId","ServicePrincipalId"' }
+}
+
+#= Export contact evidence for enterprise application and registration owners
+function Export-OwnerContactsCsv {
+    param($Report, [string]$OutputDirectory)
+    $sources = @(@((Get-Val $Report 'applications')) | ForEach-Object { @{ app = $_; source = 'Enterprise application'; owners = Get-Val $_ 'owners' } })
+    $sources += @(@((Get-Val $Report 'registrations')) | ForEach-Object { @{ app = $_; source = 'App registration'; owners = Get-Val (Get-Val $_ 'owners') 'items' } })
+    $rows = @($sources | ForEach-Object {
+        $source = $_
+        @($source.owners) | Where-Object { $null -ne $_ } | ForEach-Object {
+            $owner = $_
+            $row = [ordered]@{ Application = Get-Str $source.app 'displayName'; AppId = Get-Str $source.app 'appId'; Source = $source.source; OwnerId = Get-Str $owner 'id'; OwnerAccount = Get-Str $owner 'userPrincipalName'; UserEmail = Get-Str $owner 'userEmail'; EmployeeId = Get-Str $owner 'employeeId'; ContactMatchStatus = Get-Str $owner 'contactMatchStatus'; ContactUserId = Get-Str $owner 'contactUserId'; ContactUserPrincipalName = Get-Str $owner 'contactUserPrincipalName' }
+            foreach ($key in @($row.Keys)) {
+                $row[$key] = Convert-CsvText (Get-Str $row $key)
+            }
+            [pscustomobject]$row
+        }
+    })
+    $path = Join-Path $OutputDirectory 'owners.csv'
+    if ($rows.Count) { $rows | Export-Csv -LiteralPath $path -NoTypeInformation -Encoding utf8 }
+    else { Set-Content -LiteralPath $path -Value '"Application","AppId","Source","OwnerId","OwnerAccount","UserEmail","EmployeeId","ContactMatchStatus","ContactUserId","ContactUserPrincipalName"' }
 }

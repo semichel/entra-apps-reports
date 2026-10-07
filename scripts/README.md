@@ -10,13 +10,13 @@ This directory contains the production report pipeline. GitHub Actions is the su
 | [Export-EntraAppsReport.ps1](Export-EntraAppsReport.ps1) | Collects inventory using an existing Graph context, enriches it, evaluates rules and writes artifacts. | Script parameters: `ConfigPath`, `OutputDirectory`, `TenantId`, `ClientId`. |
 | [Write-ActionSummary.ps1](Write-ActionSummary.ps1) | Reads saved JSON and writes the expandable Actions summary, including the artifact link. Does not call Graph. | Required parameters: `ReportPath`, `ArtifactUrl`, `OutputPath`. |
 | [Report.Common.ps1](Report.Common.ps1) | Dictionary helpers, Graph requests and pagination, logging, base inventory construction, configuration/context validation and artifact orchestration. Loads the rule library. | `Get-Val`, `Get-Str`, `Invoke-MgGetAll`, `Get-LiveAppReport`, `Read-ReportDeployment`, `Assert-ReportDeploymentContext`, `Export-AppReport`. |
-| [Report.Evidence.ps1](Report.Evidence.ps1) | Enriches registrations and applications with owners, federation and permissions evidence. Builds indexes to avoid repeated scans. | `Add-ExtendedEvidence`, `Get-OptionalEvidence`, `Get-RegistrationEvidence`, `Add-AppEvidence`. |
+| [Report.Evidence.ps1](Report.Evidence.ps1) | Enriches registrations and applications with owners, employee-ID contact matches, federation and permissions evidence. Builds indexes to avoid repeated scans. | `Add-ExtendedEvidence`, `Get-OptionalEvidence`, `Get-RegistrationEvidence`, `Add-AppEvidence`, `Add-OwnerContactEvidence`, `Set-OwnerContactEvidence`. |
 | [Report.Rules.ps1](Report.Rules.ps1) | The single source of configuration-check decisions, credential date rules, owner/description rules and exclusions. Re-evaluates saved data. | `Get-ReportRuleConfiguration`, `Update-ReportCredentialPolicy`, `Update-AppGovernance`, `Update-ReportGovernance`. |
 | [Report.Render.ps1](Report.Render.ps1) | Shared report entries, per-check statistics, application details, HTML, Actions Markdown and detailed CSV exports. | `Get-ReportResults`, `Export-ReportHtml`, `Export-ReportSummary`, `Export-DetailCsv`. |
 
 `Report.*.ps1` files are function libraries loaded by dot-sourcing. Running a library directly does not generate a report. Collection constructs metadata with unevaluated statuses; `Report.Rules.ps1` evaluates it after enrichment. Do not reintroduce rule decisions into the collector.
 
-The reader requires only Microsoft Graph application permissions `Application.Read.All` and `User.ReadBasic.All`, with admin consent. `User.ReadBasic.All` exposes the name and UPN fields used by owner checks. Do not request directory-wide, full-user-profile, policy, log or write permissions for this pipeline.
+The reader requires only Microsoft Graph application permissions `Application.Read.All` and `User.Read.All`, with admin consent. `User.Read.All` is the least user read permission required for `employeeId` matching. Only `id`, `displayName`, `userPrincipalName`, `employeeId` and `mail` are selected. Do not request directory-wide, policy, log, mail-send or write permissions for this pipeline.
 
 ## Execution flow
 
@@ -24,7 +24,7 @@ The reader requires only Microsoft Graph application permissions `Application.Re
 2. The runner installs Az and Microsoft.Graph.Authentication. `azure/login` authenticates through federation; the workflow obtains a Microsoft Graph token and connects Graph with that token.
 3. `Export-EntraAppsReport.ps1` validates the connected tenant, client and Global cloud against the supplied IDs before any inventory requests.
 4. App registrations are collected once. Enterprise applications of type `Application` are collected and Microsoft-owned objects excluded using the owning tenant IDs, not display names. Owners and assignments are then collected for retained enterprise applications.
-5. `Add-ExtendedEvidence` reuses the registrations, collects federation and registration owners, resolves permission names from a service-principal catalog without querying delegated consent or tenant policies.
+5. `Add-ExtendedEvidence` reuses the registrations, collects federation and registration owners, resolves permission names from a service-principal catalog without querying delegated consent or tenant policies. User profiles are loaded once with pagination and indexed by object ID and employee ID for owner contact matching.
 6. `Export-AppReport` evaluates rules and writes JSON, findings CSV, HTML and detailed CSV files. Rendering also re-evaluates the data through the shared rules.
 7. The workflow uploads `reports/latest/` as an artifact. `Write-ActionSummary.ps1` reads its JSON and writes to `GITHUB_STEP_SUMMARY` using the uploaded artifact URL. Graph is disconnected in a `finally` block during collection.
 
@@ -44,6 +44,8 @@ The final JSON schema version is `2.0`. Its main fields are:
 
 
 Evidence wrappers use `{ status, items, reason }`, where availability is `AVAILABLE` or `UNAVAILABLE`. Unavailable evidence must not be presented as a successful empty query. Credential records contain metadata, never secret values or certificate bytes.
+
+Owner contact fields are `employeeId`, `userEmail`, `contactUserId`, `contactUserPrincipalName` and `contactMatchStatus`. Matching requires exactly one account with the same nonempty employee ID and a UPN outside `rules.ownerUpnPrefix`; a regular owner may match itself. Only the matched account's `mail` is used, never its UPN as a fallback. Statuses are `MATCHED`, `MISSING_EMPLOYEE_ID`, `NO_REGULAR_ACCOUNT`, `AMBIGUOUS`, `MISSING_USER_EMAIL`, `OWNER_USER_NOT_FOUND` and `NOT_APPLICABLE` for non-user owners. Contact matching does not change check results. User catalog failures stop collection rather than presenting missing permission as missing employee IDs. The catalog stays in memory and is not serialized; only owner and matched-contact evidence is retained. Email delivery is not implemented.
 
 A finding uses `{ rule, status, evidence }`. Keep rule IDs stable: config exclusions, statistics and filter tags depend on them. The eight current rule IDs are `AssignmentRequired`, `RedirectUriSecurity`, `CredentialDates`, `GroupAssignmentsPreferred`, `EnterpriseAdminOwner`, `EnterpriseDescription`, `RegistrationAdminOwner` and `RegistrationDescription`.
 
@@ -69,7 +71,8 @@ Disabled checks and app exclusions are applied after evaluation and remain visib
 | `report.json` | Full collected report and saved configuration. |
 | `report.html` | Self-contained interactive report, including unmatched registrations and report scope. |
 | `findings.csv` | Findings for retained enterprise applications, including their registration checks. Standalone registration findings are not exported here. |
-| `owners.csv`, `assignments.csv`, `credentials.csv` | Detailed evidence for retained enterprise applications; these also exclude standalone registrations. |
+| `owners.csv` | Owner account and contact-match evidence for both enterprise applications and all registrations. |
+| `assignments.csv`, `credentials.csv` | Detailed evidence for retained enterprise applications; these exclude standalone registrations. |
 | Actions summary | Application index, per-check statistics and expandable details. It is written to the path supplied by the workflow, not included as a separate artifact file by default. |
 
 The summary has a 1 MiB budget. Expanded details are truncated when necessary, with a notice and a link to the full artifact. The application index and statistics remain included if the summary fits; an oversized summary raises an error.

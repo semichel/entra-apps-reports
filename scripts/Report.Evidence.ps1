@@ -14,6 +14,32 @@ function Get-OptionalEvidence {
     }
 }
 
+#= Resolve a single owner and preserve missing or ambiguous contact evidence
+function Set-OwnerContactEvidence {
+    param([System.Collections.IDictionary]$Owner, $ById, $ByEmployee)
+    $Owner['userEmail'] = $null; $Owner['contactUserId'] = $null; $Owner['contactUserPrincipalName'] = $null
+    $Owner['employeeId'] = $null; $Owner['contactMatchStatus'] = 'NOT_APPLICABLE'
+    $user = Get-Val $ById (Get-Str $Owner 'id')
+    if ($null -eq $user) {
+        if ((Get-Str $Owner '@odata.type') -eq '#microsoft.graph.user') { $Owner['contactMatchStatus'] = 'OWNER_USER_NOT_FOUND' }
+        return
+    }
+    foreach ($key in @('displayName','userPrincipalName','employeeId')) {
+        $Owner[$key] = Get-Val $user $key
+    }
+    $Owner['@odata.type'] = '#microsoft.graph.user'
+    $employeeId = Get-Str $user 'employeeId'
+    if ([string]::IsNullOrWhiteSpace($employeeId)) { $Owner['contactMatchStatus'] = 'MISSING_EMPLOYEE_ID'; return }
+    $matches = @((Get-Val $ByEmployee $employeeId) | Where-Object { $null -ne $_ })
+    if ($matches.Count -eq 0) { $Owner['contactMatchStatus'] = 'NO_REGULAR_ACCOUNT'; return }
+    if ($matches.Count -gt 1) { $Owner['contactMatchStatus'] = 'AMBIGUOUS'; return }
+    $Owner['contactUserId'] = Get-Str $matches[0] 'id'
+    $Owner['contactUserPrincipalName'] = Get-Str $matches[0] 'userPrincipalName'
+    $mail = Get-Str $matches[0] 'mail'
+    if ([string]::IsNullOrWhiteSpace($mail)) { $Owner['contactMatchStatus'] = 'MISSING_USER_EMAIL'; return }
+    $Owner['userEmail'] = $mail; $Owner['contactMatchStatus'] = 'MATCHED'
+}
+
 #= Supplement the core inventory using read-only Graph evidence
 function Add-ExtendedEvidence {
     param(
@@ -41,8 +67,32 @@ function Add-ExtendedEvidence {
         Add-AppEvidence $app $principalIndex $registrationIndex
     }
     Write-Progress -Id 1 -Activity 'Application permissions and evidence' -Completed
+    Add-OwnerContactEvidence $Report
     $Report['schemaVersion'] = '2.0'
     $Report['evidenceCollectedAtUtc'] = [DateTimeOffset]::UtcNow.ToString('o')
+}
+
+#= Match owner accounts to regular accounts using employee IDs without guessing recipients
+function Add-OwnerContactEvidence {
+    param([System.Collections.IDictionary]$Report)
+    Write-ReportLog 'Loading user names, employee IDs and mail addresses once for owner contact matching.'
+    $users = @(Invoke-MgGetAll 'https://graph.microsoft.com/v1.0/users?$top=999&$select=id,displayName,userPrincipalName,employeeId,mail')
+    $byId = @{}; $byEmployee = @{}
+    $prefix = Get-Str (Get-Val (Get-Val $Report 'ruleConfiguration') 'rules') 'ownerUpnPrefix'
+    foreach ($user in $users) {
+        $byId[(Get-Str $user 'id')] = $user
+        $employeeId = Get-Str $user 'employeeId'; $upn = Get-Str $user 'userPrincipalName'
+        if ([string]::IsNullOrWhiteSpace($employeeId) -or [string]::IsNullOrWhiteSpace($upn)) { continue }
+        if ($prefix -and $upn.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { continue }
+        if (-not $byEmployee.ContainsKey($employeeId)) { $byEmployee[$employeeId] = [Collections.Generic.List[object]]::new() }
+        $byEmployee[$employeeId].Add($user)
+    }
+    $owners = @(@((Get-Val $Report 'applications')) | ForEach-Object { Get-Val $_ 'owners' })
+    $owners += @(@((Get-Val $Report 'registrations')) | ForEach-Object { Get-Val (Get-Val $_ 'owners') 'items' })
+    foreach ($owner in $owners) {
+        if ($null -ne $owner) { Set-OwnerContactEvidence $owner $byId $byEmployee }
+    }
+    Write-ReportLog ('Owner contact matching completed using {0} user records; the user catalog is not saved in the report.' -f $users.Count) Green
 }
 
 #= Registration evidence excludes credential values
