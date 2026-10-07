@@ -37,7 +37,7 @@ function Add-ExtendedEvidence {
         [System.Collections.IDictionary]$Report,
         [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Registrations
     )
-    Write-ReportLog 'Collecting app registration, consent and policy evidence.'
+    Write-ReportLog 'Collecting app registration and consent evidence.'
     Write-ReportLog ('Reusing {0} registrations from the initial inventory; no second registration download.' -f $Registrations.Count)
     $principals = @(Invoke-MgGetAll 'https://graph.microsoft.com/v1.0/servicePrincipals?$select=id,appId,displayName,appOwnerOrganizationId,publisherName,servicePrincipalType,appRoles,oauth2PermissionScopes,description,homepage,tags,info')
     $principalIndex = @{}
@@ -52,10 +52,8 @@ function Add-ExtendedEvidence {
     }
     Write-Progress -Id 1 -Activity 'Registration owners and federation' -Completed
     $Report['registrations'] = @($registrationIndex.Values)
-    Write-ReportLog 'Loading tenant policies and delegated consent. Sign-in logs are not collected.'
+    Write-ReportLog 'Loading delegated consent. Sign-in and audit logs are not collected.'
     $Report['tenantEvidence'] = [ordered]@{
-        conditionalAccessPolicies = Get-OptionalEvidence 'https://graph.microsoft.com/v1.0/identity/conditionalAccess/policies'
-        claimsMappingPolicies = Get-OptionalEvidence 'https://graph.microsoft.com/v1.0/policies/claimsMappingPolicies'
         delegatedConsentGrants = Get-OptionalEvidence 'https://graph.microsoft.com/v1.0/oauth2PermissionGrants'
     }
     $index = 0
@@ -85,7 +83,7 @@ function Get-RegistrationEvidence {
     return $result
 }
 
-#= Enrich an application with permissions and tenant-policy evidence
+#= Enrich an application with permissions and consent evidence
 function Add-AppEvidence {
     param([System.Collections.IDictionary]$App, $PrincipalIndex, $RegistrationIndex, $TenantEvidence, $ConsentByPrincipal)
     $id = Get-Str $App 'servicePrincipalId'

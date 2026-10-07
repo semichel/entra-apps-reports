@@ -196,15 +196,14 @@ function Get-ReportResults {
         $content = Get-ReportAppDetails $app $Now $byId $byAppId
         $tests.Add((New-ReportEntry ($tests.Count + 1) $title $result $category $tags.ToArray() $content ("`n### Complete application configuration`n" + (Convert-ReportEvidence $app))))
     }
-    $tenant = Get-Val $Report 'tenantEvidence'; if ($null -eq $tenant) { $tenant = @{} }
+    $tenant = @{}
+    $consent = Get-Val (Get-Val $Report 'tenantEvidence') 'delegatedConsentGrants'
+    if ($null -ne $consent) { $tenant['delegatedConsentGrants'] = $consent }
     $rows = [Collections.Generic.List[object]]::new()
     foreach ($key in $tenant.Keys) {
         $value = Get-Val $tenant $key; if ($value -is [Collections.IDictionary]) { $rows.Add(@($key, (Get-Val $value 'status'), @(@((Get-Val $value 'items')) | Where-Object { $null -ne $_ }).Count, (Get-Val $value 'reason'))) }
     }
     $coverage = New-ReportSection 'Evidence coverage' @('Evidence','Availability','Records','Reason') $rows
-    $rows.Clear()
-    @((Get-Val (Get-Val $tenant 'conditionalAccessPolicies') 'items')) | Where-Object { $null -ne $_ } | ForEach-Object { $rows.Add(@((Get-Val $_ 'displayName'), (Get-Val $_ 'state'), (Get-Val $_ 'id'))) }
-    $coverage += New-ReportSection 'Conditional Access policies' @('Policy','State','Policy ID') $rows
     $rows.Clear()
     $configuration = Get-Val $Report 'ruleConfiguration'
     foreach ($key in $configuration.rules.Keys) {
@@ -217,7 +216,7 @@ function Get-ReportResults {
     }
     $coverage += New-ReportSection 'Configured app exclusions' @('App ID','Checks','Reason') $rows 'No app exclusions configured.'
     $coverage += "`nDisabled checks: " + (Convert-ReportCell ($configuration.disabledChecks -join ', ')) + "`n"
-    $tests.Add((New-ReportEntry ($tests.Count + 1) 'Tenant evidence and report scope' 'Investigate' 'Tenant evidence' @('Report scope') $coverage ("`n### Complete tenant policies and consent evidence`n" + (Convert-ReportEvidence $tenant))))
+    $tests.Add((New-ReportEntry ($tests.Count + 1) 'Tenant evidence and report scope' 'Investigate' 'Tenant evidence' @('Report scope') $coverage ("`n### Complete tenant consent evidence`n" + (Convert-ReportEvidence $tenant))))
     $blocks = [Collections.Generic.List[object]]::new()
     $tests | Group-Object Block | Sort-Object Name | ForEach-Object {
         $group = $_
