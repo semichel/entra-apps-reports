@@ -64,6 +64,8 @@ An application with only skipped/not-applicable checks is Skipped when any check
 
 Disabled checks and app exclusions are applied after evaluation and remain visible as SKIPPED. Exclusions match the Application (client) ID. The owner rule recognizes user owners by the configured UPN prefix; it does not verify directory roles or MFA. API permissions and federation are informational. Delegated consent grants and tenant policies are not collected. No sign-in logs, audit logs or application authentication tests are performed.
 
+Description requirements are independent: `requireEnterpriseDescription` and `requireRegistrationDescription`. Admin-owner minimums are independent: `minimumEnterpriseAdminOwners` and `minimumRegistrationAdminOwners`. Legacy `requireDescriptions` and `minimumAdminOwners` provide defaults when the corresponding separate settings are absent. The resolved settings are saved with each report. Use the separate check IDs in `disabledChecks` and `exclusions` to disable other checks independently for either object.
+
 ## Outputs and templates
 
 | Output | Coverage |

@@ -20,8 +20,11 @@ Owners show **Owner account** and **User email** in HTML, the Actions summary an
 
 | Setting | Default requirement / check |
 |---|---|
-| `ownerUpnPrefix`, `minimumAdminOwners` | At least **1** user owner with UPN prefix **azadmu**, checked separately on the enterprise application and app registration: `EnterpriseAdminOwner`, `RegistrationAdminOwner`. |
-| `requireDescriptions` | Nonempty descriptions on both objects. Empty or whitespace-only values produce WARN: `EnterpriseDescription`, `RegistrationDescription`. No standard wording is enforced. |
+| `ownerUpnPrefix` | Admin owner UPN prefix, default **azadmu**. Also identifies admin accounts excluded from regular-user contact matching. |
+| `minimumEnterpriseAdminOwners` | Minimum admin owners on the enterprise application / SPN, default **1**: `EnterpriseAdminOwner`. |
+| `minimumRegistrationAdminOwners` | Minimum admin owners on the app registration, default **1**: `RegistrationAdminOwner`. |
+| `requireEnterpriseDescription` | Require a nonempty enterprise application / SPN description: `EnterpriseDescription`. Default `true`; empty or whitespace-only values produce WARN. |
+| `requireRegistrationDescription` | Require a nonempty app registration description: `RegistrationDescription`. Default `true`; empty or whitespace-only values produce WARN. No standard wording is enforced. |
 | `requireAssignment` | User assignment required must be enabled; otherwise FAIL: `AssignmentRequired`. |
 | `requireGroupAssignment` | At least one assigned group; otherwise WARN. Direct user assignments may also exist: `GroupAssignmentsPreferred`. |
 | `requireRedirectUris`, `allowLocalhostHttp` | Redirect URLs must exist and use HTTPS, with localhost HTTP allowed by default. Invalid URLs produce FAIL; missing URLs produce UNKNOWN: `RedirectUriSecurity`. |
@@ -29,6 +32,8 @@ Owners show **Owner account** and **User email** in HTML, the Actions summary an
 | `credentialWarningDays` | WARN at **30** or fewer whole days remaining. Future start dates also produce WARN. |
 
 Set a `require...` setting to `false` to disable that requirement. Numeric settings accept integers from 1 to 10000. Missing credential metadata and external app registrations are not applicable; missing evidence needed for evaluation produces UNKNOWN. API permissions and federation are informational.
+
+For descriptions only on the enterprise application / SPN, set `requireEnterpriseDescription` to `true` and `requireRegistrationDescription` to `false`. The registration check shows SKIPPED and does not prevent Passed. Existing configs using `requireDescriptions` or `minimumAdminOwners` still apply those values to both objects unless the separate settings override them. Assignment settings apply to the enterprise application; redirect and credential settings retain their existing scope. Use the separate check IDs in `disabledChecks` or `exclusions` to disable owner or description checks independently for either object.
 
 **Passed** means all active, applicable checks passed. FAIL produces **Failed**; WARN or UNKNOWN produces **Investigate**. The report does not perform application sign-in tests or require manual validation.
 

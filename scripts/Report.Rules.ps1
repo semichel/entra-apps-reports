@@ -8,15 +8,21 @@ function Get-ReportRuleConfiguration {
     $rules = Get-Val $Config 'rules'
     if ($null -eq $rules) { $rules = @{} }
     if ($null -ne $rules -and $rules -isnot [Collections.IDictionary]) { throw 'rules must be a JSON object.' }
+    $defaults['requireEnterpriseDescription'] = $true; $defaults['requireRegistrationDescription'] = $true
+    $defaults['minimumEnterpriseAdminOwners'] = 1; $defaults['minimumRegistrationAdminOwners'] = 1
     foreach ($key in @($rules.Keys)) {
         if ($key -notin @($defaults.Keys)) { throw "Unknown rule setting: $key." }; $defaults[$key] = Get-Val $rules $key
     }
-    foreach ($key in @('requireDescriptions','requireAssignment','requireGroupAssignment','requireRedirectUris','allowLocalhostHttp')) {
+    foreach ($key in @('requireDescriptions','requireEnterpriseDescription','requireRegistrationDescription','requireAssignment','requireGroupAssignment','requireRedirectUris','allowLocalhostHttp')) {
         if ($defaults[$key] -isnot [bool]) { throw "$key must be true or false." }
     }
-    foreach ($key in @('minimumAdminOwners','maxSecretLifetimeDays','maxCertificateLifetimeDays','credentialWarningDays')) {
+    foreach ($key in @('minimumAdminOwners','minimumEnterpriseAdminOwners','minimumRegistrationAdminOwners','maxSecretLifetimeDays','maxCertificateLifetimeDays','credentialWarningDays')) {
         if ($defaults[$key] -isnot [int] -and $defaults[$key] -isnot [long]) { throw "$key must be an integer." }; if ($defaults[$key] -lt 1 -or $defaults[$key] -gt 10000) { throw "$key must be between 1 and 10000." }
     }
+    if (-not $rules.Contains('requireEnterpriseDescription')) { $defaults['requireEnterpriseDescription'] = $defaults['requireDescriptions'] }
+    if (-not $rules.Contains('requireRegistrationDescription')) { $defaults['requireRegistrationDescription'] = $defaults['requireDescriptions'] }
+    if (-not $rules.Contains('minimumEnterpriseAdminOwners')) { $defaults['minimumEnterpriseAdminOwners'] = $defaults['minimumAdminOwners'] }
+    if (-not $rules.Contains('minimumRegistrationAdminOwners')) { $defaults['minimumRegistrationAdminOwners'] = $defaults['minimumAdminOwners'] }
     if ($defaults.ownerUpnPrefix -isnot [string] -or [string]::IsNullOrWhiteSpace($defaults.ownerUpnPrefix) -or $defaults.ownerUpnPrefix -match '[\s*?\[\]@]') { throw 'ownerUpnPrefix must be a nonempty literal UPN prefix without spaces, @ or wildcards.' }
     $names = @('AssignmentRequired','RedirectUriSecurity','CredentialDates','GroupAssignmentsPreferred','EnterpriseAdminOwner','RegistrationAdminOwner','EnterpriseDescription','RegistrationDescription')
     $disabled = @((Get-Val $Config 'disabledChecks') | Where-Object { $null -ne $_ })
@@ -119,19 +125,20 @@ function Update-AppGovernance {
     @(Get-ConfiguredCoreFindings $App $policy) | ForEach-Object { $findings.Add($_) }
     if (Get-Str $App 'servicePrincipalId') {
         $availability = Get-Str $App 'ownerEvidenceStatus'; if (-not $availability) { $availability = 'AVAILABLE' }
-        $findings.Add((New-AdminOwnerFinding 'EnterpriseAdminOwner' 'Enterprise application / SPN' (Get-Val $App 'owners') $availability $policy.ownerUpnPrefix $policy.minimumAdminOwners))
-        $findings.Add((New-DescriptionFinding 'EnterpriseDescription' 'Enterprise application / SPN' $App $policy.requireDescriptions))
+        $findings.Add((New-AdminOwnerFinding 'EnterpriseAdminOwner' 'Enterprise application / SPN' (Get-Val $App 'owners') $availability $policy.ownerUpnPrefix $policy.minimumEnterpriseAdminOwners))
+        $findings.Add((New-DescriptionFinding 'EnterpriseDescription' 'Enterprise application / SPN' $App $policy.requireEnterpriseDescription))
     }
     $registration = Get-Val $App 'registration'
     if ($null -ne $registration) {
         $owners = Get-Val $registration 'owners'; $availability = Get-Str $owners 'status'
-        $findings.Add((New-AdminOwnerFinding 'RegistrationAdminOwner' 'App registration' (Get-Val $owners 'items') $availability $policy.ownerUpnPrefix $policy.minimumAdminOwners))
-        $findings.Add((New-DescriptionFinding 'RegistrationDescription' 'App registration' $registration $policy.requireDescriptions))
+        $findings.Add((New-AdminOwnerFinding 'RegistrationAdminOwner' 'App registration' (Get-Val $owners 'items') $availability $policy.ownerUpnPrefix $policy.minimumRegistrationAdminOwners))
+        $findings.Add((New-DescriptionFinding 'RegistrationDescription' 'App registration' $registration $policy.requireRegistrationDescription))
     }
     else {
         $status = if (Get-Val $App 'registrationAvailable') { 'UNKNOWN' } else { 'NOT_APPLICABLE' }
         $findings.Add((New-Finding 'RegistrationAdminOwner' $status 'No local app registration evidence. An external home-tenant registration cannot be checked from this tenant.'))
-        $findings.Add((New-Finding 'RegistrationDescription' $status 'No local app registration evidence. An external home-tenant description cannot be checked from this tenant.'))
+        if ($policy.requireRegistrationDescription) { $findings.Add((New-Finding 'RegistrationDescription' $status 'No local app registration evidence. An external home-tenant description cannot be checked from this tenant.')) }
+        else { $findings.Add((New-DescriptionFinding 'RegistrationDescription' 'App registration' $null $false)) }
     }
     Set-ReportFindingExclusions $App $findings $Configuration
     $App['findings'] = $findings.ToArray()
