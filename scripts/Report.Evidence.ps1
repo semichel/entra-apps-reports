@@ -48,7 +48,7 @@ function Add-ExtendedEvidence {
     )
     Write-ReportLog 'Collecting app registration and permission evidence.'
     Write-ReportLog ('Reusing {0} registrations from the initial inventory; no second registration download.' -f $Registrations.Count)
-    $principals = @(Invoke-MgGetAll 'https://graph.microsoft.com/v1.0/servicePrincipals?$select=id,appId,displayName,appOwnerOrganizationId,publisherName,servicePrincipalType,appRoles,oauth2PermissionScopes,description,homepage,tags,info')
+    $principals = @(Invoke-MgGetAll 'https://graph.microsoft.com/v1.0/servicePrincipals?$select=id,appId,displayName,appOwnerOrganizationId,publisherName,servicePrincipalType,appRoles,oauth2PermissionScopes,description,notes,homepage,tags,info')
     $principalIndex = @{}
     foreach ($principal in $principals) {
         $principalIndex[(Get-Str $principal 'id')] = $principal
@@ -116,7 +116,7 @@ function Add-AppEvidence {
     $id = Get-Str $App 'servicePrincipalId'
     $appId = Get-Str $App 'appId'
     $principal = Get-Val $PrincipalIndex $id
-    foreach ($key in @('appOwnerOrganizationId','publisherName','servicePrincipalType','appRoles','oauth2PermissionScopes','description','homepage','tags','info')) {
+    foreach ($key in @('appOwnerOrganizationId','publisherName','servicePrincipalType','appRoles','oauth2PermissionScopes','description','notes','homepage','tags','info')) {
         $App[$key] = Get-Val $principal $key
     }
     $App['registration'] = Get-Val $RegistrationIndex $appId

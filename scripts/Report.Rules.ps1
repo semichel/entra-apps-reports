@@ -70,8 +70,10 @@ function Get-ConfiguredCoreFindings {
     New-Finding 'AssignmentRequired' $status ('Assignment required: {0}; rule enforced: {1}.' -f $assignment, $Rules.requireAssignment)
     $urls = @((Get-Val $App 'redirectUris') | Where-Object { $null -ne $_ })
     $invalid = @($urls | Where-Object { $uri = $null; -not [uri]::TryCreate([string]$_, [UriKind]::Absolute, [ref]$uri) -or ($uri.Scheme -ne 'https' -and -not ($Rules.allowLocalhostHttp -and $uri.Scheme -eq 'http' -and $uri.Host -in @('localhost','127.0.0.1','[::1]'))) })
-    $status = if (-not $Rules.requireRedirectUris) { 'SKIPPED' } elseif ($invalid.Count) { 'FAIL' } elseif (-not $urls.Count) { 'UNKNOWN' } else { 'PASS' }
-    New-Finding 'RedirectUriSecurity' $status ('Redirect URLs: {0}; invalid URLs: {1}; localhost HTTP allowed: {2}; rule enforced: {3}.' -f $urls.Count, ($invalid -join ', '), $Rules.allowLocalhostHttp, $Rules.requireRedirectUris)
+    $status = if (-not $Rules.requireRedirectUris) { 'SKIPPED' } elseif ($invalid.Count -or -not $urls.Count) { 'FAIL' } else { 'PASS' }
+    $evidence = 'Redirect URLs: {0}; invalid URLs: {1}; localhost HTTP allowed: {2}; rule enforced: {3}.' -f $urls.Count, ($invalid -join ', '), $Rules.allowLocalhostHttp, $Rules.requireRedirectUris
+    if ($Rules.requireRedirectUris -and -not $urls.Count) { $evidence += ' A redirect URL is required by configuration but none was collected. For app-only automation without user redirects, exclude RedirectUriSecurity for the application client ID with a reason.' }
+    New-Finding 'RedirectUriSecurity' $status $evidence
     $assignments = @((Get-Val $App 'assignments') | Where-Object { $null -ne $_ })
     $groups = @($assignments | Where-Object { (Get-Str $_ 'principalType') -eq 'Group' })
     $users = @($assignments | Where-Object { (Get-Str $_ 'principalType') -eq 'User' })
@@ -108,10 +110,10 @@ function New-AdminOwnerFinding {
 
 #= Description policy currently requires content without prescribing a standard text
 function New-DescriptionFinding {
-    param([string]$Rule, [string]$Label, $Object, [bool]$Required = $true)
-    $status = if (-not $Required) { 'SKIPPED' } elseif ([string]::IsNullOrWhiteSpace((Get-Str $Object 'description'))) { 'WARN' } else { 'PASS' }
-    $evidence = if ($status -eq 'WARN') { "⚠ $Label description is empty. A nonempty description is required." } else { "$Label description is populated. No standard wording requirement is applied." }
-    if (-not $Required) { $evidence = 'Description check disabled in configuration.' }
+    param([string]$Rule, [string]$Label, $Object, [bool]$Required = $true, [string]$Field = 'description')
+    $status = if (-not $Required) { 'SKIPPED' } elseif ([string]::IsNullOrWhiteSpace((Get-Str $Object $Field))) { 'WARN' } else { 'PASS' }
+    $evidence = if ($status -eq 'WARN') { "⚠ $Label $Field is empty. A nonempty $Field is required." } else { "$Label $Field is populated. No standard wording requirement is applied." }
+    if (-not $Required) { $evidence = "$Field check disabled in configuration." }
     return New-Finding $Rule $status $evidence
 }
 
@@ -126,7 +128,7 @@ function Update-AppGovernance {
     if (Get-Str $App 'servicePrincipalId') {
         $availability = Get-Str $App 'ownerEvidenceStatus'; if (-not $availability) { $availability = 'AVAILABLE' }
         $findings.Add((New-AdminOwnerFinding 'EnterpriseAdminOwner' 'Enterprise application / SPN' (Get-Val $App 'owners') $availability $policy.ownerUpnPrefix $policy.minimumEnterpriseAdminOwners))
-        $findings.Add((New-DescriptionFinding 'EnterpriseDescription' 'Enterprise application / SPN' $App $policy.requireEnterpriseDescription))
+        $findings.Add((New-DescriptionFinding 'EnterpriseDescription' 'Enterprise application / SPN' $App $policy.requireEnterpriseDescription 'notes'))
     }
     $registration = Get-Val $App 'registration'
     if ($null -ne $registration) {
