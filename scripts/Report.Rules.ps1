@@ -24,7 +24,7 @@ function Get-ReportRuleConfiguration {
     if (-not $rules.Contains('minimumEnterpriseAdminOwners')) { $defaults['minimumEnterpriseAdminOwners'] = $defaults['minimumAdminOwners'] }
     if (-not $rules.Contains('minimumRegistrationAdminOwners')) { $defaults['minimumRegistrationAdminOwners'] = $defaults['minimumAdminOwners'] }
     if ($defaults.ownerUpnPrefix -isnot [string] -or [string]::IsNullOrWhiteSpace($defaults.ownerUpnPrefix) -or $defaults.ownerUpnPrefix -match '[\s*?\[\]@]') { throw 'ownerUpnPrefix must be a nonempty literal UPN prefix without spaces, @ or wildcards.' }
-    $names = @('AssignmentRequired','RedirectUriSecurity','CredentialDates','GroupAssignmentsPreferred','EnterpriseAdminOwner','RegistrationAdminOwner','EnterpriseDescription','RegistrationDescription')
+    $names = @('AssignmentRequired','RedirectUriSecurity','CredentialDates','FederatedCredentials','GroupAssignmentsPreferred','EnterpriseAdminOwner','RegistrationAdminOwner','EnterpriseDescription','RegistrationDescription')
     $disabled = @((Get-Val $Config 'disabledChecks') | Where-Object { $null -ne $_ })
     foreach ($name in $disabled) {
         if ($name -notin $names) { throw "Unknown disabled check: $name." }
@@ -64,6 +64,12 @@ function Get-ConfiguredCoreFindings {
     $status = if ($statuses -contains 'FAIL') { 'FAIL' } elseif ($statuses -contains 'UNKNOWN') { 'UNKNOWN' } elseif ($statuses -contains 'WARN') { 'WARN' } elseif ($credentials.Count) { 'PASS' } else { 'NOT_APPLICABLE' }
     $evidence = if ($credentials.Count) { 'Maximum lifetime: secrets {0} days; certificates {1} days. Warning at {2} days remaining. Expired or invalid date ranges fail.' -f $Rules.maxSecretLifetimeDays, $Rules.maxCertificateLifetimeDays, $Rules.credentialWarningDays } else { 'No certificate or client-secret metadata exists in the collected application objects.' }
     New-Finding 'CredentialDates' $status $evidence
+    $registration = Get-Val $App 'registration'
+    $federation = Get-Val $registration 'federatedIdentityCredentials'
+    $trusts = @((Get-Val $federation 'items') | Where-Object { $null -ne $_ })
+    $status = if ($null -eq $registration -and -not (Get-Val $App 'registrationAvailable')) { 'NOT_APPLICABLE' } elseif ((Get-Str $federation 'status') -ne 'AVAILABLE') { 'UNKNOWN' } elseif ($trusts.Count) { 'PASS' } else { 'NOT_APPLICABLE' }
+    $evidence = if ($status -eq 'PASS') { '{0} federated identity credential(s) configured. Workload identity federation supports authentication without stored client secrets. This confirms configuration presence, not runtime use or trust correctness. Existing certificates and secrets are checked separately by CredentialDates.' -f $trusts.Count } elseif ($status -eq 'UNKNOWN') { 'Federated credential evidence is unavailable; configuration presence cannot be verified.' } else { 'No federated identity credentials are configured in the available local registration evidence, or no local registration exists. Federation is optional.' }
+    New-Finding 'FederatedCredentials' $status $evidence
     if (-not (Get-Str $App 'servicePrincipalId')) { return }
     $assignment = Get-Val $App 'assignmentRequired'
     $status = if (-not $Rules.requireAssignment) { 'SKIPPED' } elseif ($null -eq $assignment) { 'UNKNOWN' } elseif ($assignment -eq $true) { 'PASS' } else { 'FAIL' }
@@ -120,7 +126,7 @@ function New-DescriptionFinding {
 #= Replace obsolete checks and evaluate each object separately
 function Update-AppGovernance {
     param([System.Collections.IDictionary]$App, $Configuration = (Get-ReportRuleConfiguration @{}))
-    $rules = @('AssignmentRequired','RedirectUriSecurity','CredentialDates','GroupAssignmentsPreferred','TwoHumanOwners','ProtocolConfirmation','AuthenticationAndClaims','SamlVerificationAndEncryption','OperationsAndDocumentation','EnterpriseAdminOwner','RegistrationAdminOwner','EnterpriseDescription','RegistrationDescription')
+    $rules = @('AssignmentRequired','RedirectUriSecurity','CredentialDates','FederatedCredentials','GroupAssignmentsPreferred','TwoHumanOwners','ProtocolConfirmation','AuthenticationAndClaims','SamlVerificationAndEncryption','OperationsAndDocumentation','EnterpriseAdminOwner','RegistrationAdminOwner','EnterpriseDescription','RegistrationDescription')
     $findings = [Collections.Generic.List[object]]::new()
     @((Get-Val $App 'findings')) | Where-Object { $null -ne $_ -and (Get-Str $_ 'rule') -notin $rules } | ForEach-Object { $findings.Add($_) }
     $policy = $Configuration.rules

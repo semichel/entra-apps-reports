@@ -27,7 +27,7 @@ Credential lifetime and redirect validation address only the metadata collected 
 
 ## Scope and interpretation
 
-- Assignment checks apply to enterprise applications. For SAML, redirect checks use SPN reply URLs; otherwise they use linked registration redirect URLs. Standalone registrations currently have credential, owner and description checks, without a redirect check.
+- Assignment checks apply to enterprise applications. For SAML, redirect checks use SPN reply URLs; otherwise they use linked registration redirect URLs. Standalone registrations currently have credential-date, federation, owner and description checks, without a redirect check.
 - Credential checks include collected secrets and certificates from both objects, using the same lifetime limits. No credential metadata produces NOT_APPLICABLE. One failing credential makes `CredentialDates` FAIL, even if other credentials pass.
 - A registration outside the tenant cannot be checked. Registration checks are NOT_APPLICABLE when no local registration exists, or UNKNOWN when local evidence was expected but is missing. An explicitly disabled description check remains SKIPPED.
 - Numeric settings accept integers from 1 to 10000. Boolean settings require JSON `true` or `false`. The UPN prefix must be nonempty, without spaces, `@` or wildcards. Invalid rule configuration stops the run.
@@ -42,6 +42,14 @@ To require SPN Notes without requiring a registration description, change these 
 
 The legacy settings `requireDescriptions` and `minimumAdminOwners` remain supported as defaults for both objects. The corresponding separate settings take precedence when present. New configurations should use the separate settings shown in `production.json`.
 
+## Federated credentials
+
+`FederatedCredentials` checks the linked app registration's `federatedIdentityCredentials`. At least one configured credential with available evidence produces PASS (green). An empty collection or no local registration produces NOT_APPLICABLE, because federation is optional. Unavailable evidence produces UNKNOWN. No additional Graph requests or permissions are needed; the existing federation inventory is reused.
+
+Federation can avoid stored client secrets and the associated leakage and rotation burden. See [Microsoft's workload identity federation guidance](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation). This check confirms that a trust is configured; it does not validate issuer/subject restrictions, external platform security, successful token exchange or actual use. Certificates and secrets that remain are still evaluated by `CredentialDates`; federation does not override their FAIL or WARN results. Without certificates or secrets, `CredentialDates` remains NOT_APPLICABLE while federation can be PASS.
+
+Disable this check globally with `"disabledChecks": ["FederatedCredentials"]`, or use an app-specific exclusion with that check ID and a reason. No extra rule setting is required.
+
 ## Other configuration fields
 
 | Field | Purpose and risk implications |
@@ -50,7 +58,7 @@ The legacy settings `requireDescriptions` and `minimumAdminOwners` remain suppor
 | `disabledChecks` | Disables listed check IDs globally. Results remain visible as SKIPPED. Disabling a check removes that condition from the pass decision; it does not fix the underlying configuration. |
 | `exclusions` | Approved exceptions for an Application (client) ID, with specific `checks` and a mandatory `reason`. Use `["*"]` for every check on that application. Results remain SKIPPED with the reason; inventory remains visible. Exceptions have no automatic expiry. |
 
-Valid check IDs are `EnterpriseAdminOwner`, `RegistrationAdminOwner`, `EnterpriseDescription`, `RegistrationDescription`, `AssignmentRequired`, `GroupAssignmentsPreferred`, `RedirectUriSecurity` and `CredentialDates`. Use the separate IDs to disable checks independently for SPN and registration.
+Valid check IDs are `EnterpriseAdminOwner`, `RegistrationAdminOwner`, `EnterpriseDescription`, `RegistrationDescription`, `AssignmentRequired`, `GroupAssignmentsPreferred`, `RedirectUriSecurity`, `CredentialDates` and `FederatedCredentials`. Use the separate IDs to disable checks independently for SPN and registration.
 
 Owner contact matching via `employeeId` is informational and does not affect pass/fail. Missing or ambiguous contact matches never select an email address. The report does not collect sign-in or audit logs, evaluate Conditional Access, verify MFA or send email.
 

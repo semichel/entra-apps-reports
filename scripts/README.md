@@ -47,7 +47,7 @@ Evidence wrappers use `{ status, items, reason }`, where availability is `AVAILA
 
 Owner contact fields are `employeeId`, `userEmail`, `contactUserId`, `contactUserPrincipalName` and `contactMatchStatus`. Matching requires exactly one account with the same nonempty employee ID and a UPN outside `rules.ownerUpnPrefix`; a regular owner may match itself. Only the matched account's `mail` is used, never its UPN as a fallback. Statuses are `MATCHED`, `MISSING_EMPLOYEE_ID`, `NO_REGULAR_ACCOUNT`, `AMBIGUOUS`, `MISSING_USER_EMAIL`, `OWNER_USER_NOT_FOUND` and `NOT_APPLICABLE` for non-user owners. Contact matching does not change check results. User catalog failures stop collection rather than presenting missing permission as missing employee IDs. The catalog stays in memory and is not serialized; only owner and matched-contact evidence is retained. Email delivery is not implemented.
 
-A finding uses `{ rule, status, evidence }`. Keep rule IDs stable: config exclusions, statistics and filter tags depend on them. The eight current rule IDs are `AssignmentRequired`, `RedirectUriSecurity`, `CredentialDates`, `GroupAssignmentsPreferred`, `EnterpriseAdminOwner`, `EnterpriseDescription`, `RegistrationAdminOwner` and `RegistrationDescription`.
+A finding uses `{ rule, status, evidence }`. Keep rule IDs stable: config exclusions, statistics and filter tags depend on them. The nine current rule IDs are `AssignmentRequired`, `RedirectUriSecurity`, `CredentialDates`, `FederatedCredentials`, `GroupAssignmentsPreferred`, `EnterpriseAdminOwner`, `EnterpriseDescription`, `RegistrationAdminOwner` and `RegistrationDescription`.
 
 | Finding status | Meaning / application result |
 |---|---|
@@ -58,11 +58,11 @@ A finding uses `{ rule, status, evidence }`. Keep rule IDs stable: config exclus
 | `SKIPPED` | Disabled or excluded, with an explanation. Does not count as PASS. |
 | `NOT_APPLICABLE` | The check cannot apply to the collected object, such as a registration in an external home tenant. Does not count as PASS. |
 
-An application with only skipped/not-applicable checks is Skipped when any check is SKIPPED; otherwise its overall status is UNKNOWN. Standalone registrations have credential, registration-owner and registration-description checks; enterprise-specific checks require a service-principal ID.
+An application with only skipped/not-applicable checks is Skipped when any check is SKIPPED; otherwise its overall status is UNKNOWN. Standalone registrations have credential-date, federation, registration-owner and registration-description checks; enterprise-specific checks require a service-principal ID.
 
 `Get-ReportResults` combines enterprise applications with unmatched registrations, so linked registrations are not separate report entries. It adds one **Report rules and scope** entry marked Investigate. Consequently, overall dashboard counts include that entry. Per-check statistics exclude it and count each application once per check.
 
-Disabled checks and app exclusions are applied after evaluation and remain visible as SKIPPED. Exclusions match the Application (client) ID. The owner rule recognizes user owners by the configured UPN prefix; it does not verify directory roles or MFA. API permissions and federation are informational. Delegated consent grants and tenant policies are not collected. No sign-in logs, audit logs or application authentication tests are performed.
+Disabled checks and app exclusions are applied after evaluation and remain visible as SKIPPED. Exclusions match the Application (client) ID. The owner rule recognizes user owners by the configured UPN prefix; it does not verify directory roles or MFA. API permissions are informational. Federation configuration is evaluated separately by `FederatedCredentials`. Delegated consent grants and tenant policies are not collected. No sign-in logs, audit logs or application authentication tests are performed.
 
 Description requirements are independent: `requireEnterpriseDescription` and `requireRegistrationDescription`. Admin-owner minimums are independent: `minimumEnterpriseAdminOwners` and `minimumRegistrationAdminOwners`. Legacy `requireDescriptions` and `minimumAdminOwners` provide defaults when the corresponding separate settings are absent. The resolved settings are saved with each report. Use the separate check IDs in `disabledChecks` and `exclusions` to disable other checks independently for either object.
 

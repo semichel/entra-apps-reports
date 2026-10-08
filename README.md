@@ -12,7 +12,7 @@ The workflow uses federated authentication. Set `AZURE_TENANT_ID` and `AZURE_CLI
 
 The report application uses Microsoft Graph **Application permissions** `Application.Read.All` and `User.Read.All`, with tenant admin consent. `User.Read.All` is needed for employee-ID contact matching; basic user access does not include `employeeId`. Directory-wide access and policy access are not required. Delegated consent grants, Conditional Access policies and claims-mapping policies are not collected. Requested delegated permissions are shown with consent marked as not collected.
 
-Owners show **Owner account** and **User email** in HTML, the Actions summary and `owners.csv`. The report matches `employeeId` to exactly one regular user account whose UPN does not start with the configured `ownerUpnPrefix`, then uses that account's `mail`. A regular owner can match itself. Missing employee IDs, missing mail, missing matches and ambiguous matches are shown explicitly, with no email selected. Contact matching does not affect the eight configuration checks and does not send email. The user catalog is read once with only ID, name, UPN, employee ID and mail; only owner and matched-contact evidence is saved.
+Owners show **Owner account** and **User email** in HTML, the Actions summary and `owners.csv`. The report matches `employeeId` to exactly one regular user account whose UPN does not start with the configured `ownerUpnPrefix`, then uses that account's `mail`. A regular owner can match itself. Missing employee IDs, missing mail, missing matches and ambiguous matches are shown explicitly, with no email selected. Contact matching does not affect the configuration checks and does not send email. The user catalog is read once with only ID, name, UPN, employee ID and mail; only owner and matched-contact evidence is saved.
 
 ## Configuration
 
@@ -31,11 +31,13 @@ Owners show **Owner account** and **User email** in HTML, the Actions summary an
 | `maxSecretLifetimeDays`, `maxCertificateLifetimeDays` | Maximum lifetime **90** days for secrets and **365** days for certificates. Expired credentials, invalid date ranges or excessive lifetime produce FAIL: `CredentialDates`. |
 | `credentialWarningDays` | WARN at **30** or fewer whole days remaining. Future start dates also produce WARN. |
 
-Set a `require...` setting to `false` to disable that requirement. Numeric settings accept integers from 1 to 10000. Missing credential metadata and external app registrations are not applicable; missing evidence needed for evaluation produces UNKNOWN. API permissions and federation are informational.
+Set a `require...` setting to `false` to disable that requirement. Numeric settings accept integers from 1 to 10000. Missing credential metadata and external app registrations are not applicable; missing evidence needed for evaluation produces UNKNOWN. API permissions are informational. Federation configuration is evaluated separately by `FederatedCredentials`.
 
 To require Notes on the enterprise application / SPN without requiring an app registration description, set `requireEnterpriseDescription` to `true` and `requireRegistrationDescription` to `false`. The registration check shows SKIPPED and does not prevent Passed. Existing configs using `requireDescriptions` or `minimumAdminOwners` still apply those values to both objects unless the separate settings override them. Assignment settings apply to the enterprise application; redirect and credential settings retain their existing scope. Use the separate check IDs in `disabledChecks` or `exclusions` to disable owner or description checks independently for either object.
 
 **Passed** means all active, applicable checks passed. FAIL produces **Failed**; WARN or UNKNOWN produces **Investigate**. The report does not perform application sign-in tests or require manual validation.
+
+`FederatedCredentials` shows PASS when a federated identity credential is configured on the app registration. No federation is NOT_APPLICABLE; unreadable evidence is UNKNOWN. Certificates and secrets remain checked independently, including when federation is configured. This checks configuration presence, not whether federation is used or its trust is correctly restricted. Disable it through `disabledChecks` or an app-specific exclusion if needed.
 
 ## Exclusions
 
