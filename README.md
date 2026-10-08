@@ -1,6 +1,6 @@
 # Entra Apps Reports
 
-Read-only inventory and configuration checks for Entra app registrations and enterprise applications. Reports include owners, descriptions, certificate and secret dates, assignments, requested API permissions, granted application permissions and federation. Microsoft-owned enterprise applications are excluded. Sign-in and audit logs are not collected.
+Read-only inventory and configuration checks for Entra app registrations and enterprise applications. Reports include owners, SPN Notes, certificate and secret dates, assignments, requested API permissions, granted application permissions and federation. Microsoft-owned enterprise applications are excluded. Sign-in and audit logs are not collected.
 
 ## Run and view
 
@@ -23,8 +23,7 @@ Owners show **Owner account** and **User email** in HTML, the Actions summary an
 | `ownerUpnPrefix` | Admin owner UPN prefix, default **azadmu**. Also identifies admin accounts excluded from regular-user contact matching. |
 | `minimumEnterpriseAdminOwners` | Minimum admin owners on the enterprise application / SPN, default **1**: `EnterpriseAdminOwner`. |
 | `minimumRegistrationAdminOwners` | Minimum admin owners on the app registration, default **1**: `RegistrationAdminOwner`. |
-| `requireEnterpriseDescription` | Require nonempty **Notes** on the enterprise application / SPN: `EnterpriseDescription`. Edit under Enterprise applications → select app → Properties → Notes → Save. The setting and check ID retain their existing names for compatibility. Default `true`; empty or whitespace-only values produce WARN. |
-| `requireRegistrationDescription` | Require a nonempty app registration description: `RegistrationDescription`. Default `true`; empty or whitespace-only values produce WARN. No standard wording is enforced. |
+| `requireNotes` | Require nonempty **Notes** on the enterprise application / SPN: `Notes`. Edit under Enterprise applications → select app → Properties → Notes → Save. Default `true`; empty or whitespace-only values produce WARN. |
 | `requireAssignment` | User assignment required must be enabled; otherwise FAIL: `AssignmentRequired`. |
 | `requireGroupAssignment` | At least one assigned group; otherwise WARN. Direct user assignments may also exist: `GroupAssignmentsPreferred`. |
 | `requireRedirectUris`, `allowLocalhostHttp` | Validate configured redirect URLs for HTTPS, with localhost HTTP allowed by default. Invalid URLs produce FAIL; no URLs produce NOT_APPLICABLE and do not prevent Passed: `RedirectUriSecurity`. `requireRedirectUris` enables validation; it does not require a URL to exist. |
@@ -33,7 +32,6 @@ Owners show **Owner account** and **User email** in HTML, the Actions summary an
 
 Set a `require...` setting to `false` to disable that requirement. Numeric settings accept integers from 1 to 10000. Missing credential metadata and external app registrations are not applicable; missing evidence needed for evaluation produces UNKNOWN. API permissions are informational. Federation configuration is evaluated separately by `FederatedCredentials`.
 
-To require Notes on the enterprise application / SPN without requiring an app registration description, set `requireEnterpriseDescription` to `true` and `requireRegistrationDescription` to `false`. The registration check shows SKIPPED and does not prevent Passed. Existing configs using `requireDescriptions` or `minimumAdminOwners` still apply those values to both objects unless the separate settings override them. Assignment settings apply to the enterprise application; redirect and credential settings retain their existing scope. Use the separate check IDs in `disabledChecks` or `exclusions` to disable owner or description checks independently for either object.
 
 **Passed** means all active, applicable checks passed. FAIL produces **Failed**; WARN or UNKNOWN produces **Investigate**. The report does not perform application sign-in tests or require manual validation.
 
@@ -47,7 +45,7 @@ To require Notes on the enterprise application / SPN without requiring an app re
 "exclusions": [
   {
     "appId": "11111111-2222-3333-4444-555555555555",
-    "checks": ["EnterpriseDescription", "RegistrationDescription"],
+    "checks": ["Notes"],
     "reason": "Approved exception under request 12345"
   }
 ]

@@ -4,32 +4,41 @@ $ErrorActionPreference = 'Stop'
 #= Merge defaults and reject invalid policy settings before collection
 function Get-ReportRuleConfiguration {
     param($Config)
-    $defaults = [ordered]@{ ownerUpnPrefix = 'azadmu'; minimumAdminOwners = 1; requireDescriptions = $true; requireAssignment = $true; requireGroupAssignment = $true; requireRedirectUris = $true; allowLocalhostHttp = $true; maxSecretLifetimeDays = 90; maxCertificateLifetimeDays = 365; credentialWarningDays = 30 }
+    $defaults = [ordered]@{ ownerUpnPrefix = 'azadmu'; minimumAdminOwners = 1; requireNotes = $true; requireAssignment = $true; requireGroupAssignment = $true; requireRedirectUris = $true; allowLocalhostHttp = $true; maxSecretLifetimeDays = 90; maxCertificateLifetimeDays = 365; credentialWarningDays = 30 }
     $rules = Get-Val $Config 'rules'
     if ($null -eq $rules) { $rules = @{} }
     if ($null -ne $rules -and $rules -isnot [Collections.IDictionary]) { throw 'rules must be a JSON object.' }
-    $defaults['requireEnterpriseDescription'] = $true; $defaults['requireRegistrationDescription'] = $true
+    $normalizedRules = @{}; foreach ($key in $rules.Keys) { $normalizedRules[$key] = Get-Val $rules $key }
+    if (-not $normalizedRules.ContainsKey('requireNotes')) {
+        if ($normalizedRules.ContainsKey('requireEnterpriseDescription')) { $normalizedRules['requireNotes'] = $normalizedRules['requireEnterpriseDescription'] }
+        elseif ($normalizedRules.ContainsKey('requireDescriptions')) { $normalizedRules['requireNotes'] = $normalizedRules['requireDescriptions'] }
+    }
+    foreach ($key in @('requireEnterpriseDescription','requireRegistrationDescription','requireDescriptions')) { $normalizedRules.Remove($key) }
+    $rules = $normalizedRules
     $defaults['minimumEnterpriseAdminOwners'] = 1; $defaults['minimumRegistrationAdminOwners'] = 1
     foreach ($key in @($rules.Keys)) {
         if ($key -notin @($defaults.Keys)) { throw "Unknown rule setting: $key." }; $defaults[$key] = Get-Val $rules $key
     }
-    foreach ($key in @('requireDescriptions','requireEnterpriseDescription','requireRegistrationDescription','requireAssignment','requireGroupAssignment','requireRedirectUris','allowLocalhostHttp')) {
+    foreach ($key in @('requireNotes','requireAssignment','requireGroupAssignment','requireRedirectUris','allowLocalhostHttp')) {
         if ($defaults[$key] -isnot [bool]) { throw "$key must be true or false." }
     }
     foreach ($key in @('minimumAdminOwners','minimumEnterpriseAdminOwners','minimumRegistrationAdminOwners','maxSecretLifetimeDays','maxCertificateLifetimeDays','credentialWarningDays')) {
         if ($defaults[$key] -isnot [int] -and $defaults[$key] -isnot [long]) { throw "$key must be an integer." }; if ($defaults[$key] -lt 1 -or $defaults[$key] -gt 10000) { throw "$key must be between 1 and 10000." }
     }
-    if (-not $rules.Contains('requireEnterpriseDescription')) { $defaults['requireEnterpriseDescription'] = $defaults['requireDescriptions'] }
-    if (-not $rules.Contains('requireRegistrationDescription')) { $defaults['requireRegistrationDescription'] = $defaults['requireDescriptions'] }
     if (-not $rules.Contains('minimumEnterpriseAdminOwners')) { $defaults['minimumEnterpriseAdminOwners'] = $defaults['minimumAdminOwners'] }
     if (-not $rules.Contains('minimumRegistrationAdminOwners')) { $defaults['minimumRegistrationAdminOwners'] = $defaults['minimumAdminOwners'] }
     if ($defaults.ownerUpnPrefix -isnot [string] -or [string]::IsNullOrWhiteSpace($defaults.ownerUpnPrefix) -or $defaults.ownerUpnPrefix -match '[\s*?\[\]@]') { throw 'ownerUpnPrefix must be a nonempty literal UPN prefix without spaces, @ or wildcards.' }
-    $names = @('AssignmentRequired','RedirectUriSecurity','CredentialDates','FederatedCredentials','GroupAssignmentsPreferred','EnterpriseAdminOwner','RegistrationAdminOwner','EnterpriseDescription','RegistrationDescription')
-    $disabled = @((Get-Val $Config 'disabledChecks') | Where-Object { $null -ne $_ })
+    $names = @('AssignmentRequired','RedirectUriSecurity','CredentialDates','FederatedCredentials','GroupAssignmentsPreferred','EnterpriseAdminOwner','RegistrationAdminOwner','Notes')
+    $disabled = @((Get-Val $Config 'disabledChecks') | Where-Object { $null -ne $_ -and $_ -ne 'RegistrationDescription' } | ForEach-Object { if ($_ -eq 'EnterpriseDescription') { 'Notes' } else { $_ } })
     foreach ($name in $disabled) {
         if ($name -notin $names) { throw "Unknown disabled check: $name." }
     }
-    $exclusions = @((Get-Val $Config 'exclusions') | Where-Object { $null -ne $_ })
+    $exclusions = @((Get-Val $Config 'exclusions') | Where-Object { $null -ne $_ } | ForEach-Object {
+        $entry = $_; $oldChecks = @((Get-Val $entry 'checks') | Where-Object { $null -ne $_ })
+        $checks = @($oldChecks | Where-Object { $_ -ne 'RegistrationDescription' } | ForEach-Object { if ($_ -eq 'EnterpriseDescription') { 'Notes' } else { $_ } })
+        if ($oldChecks.Count -and -not $checks.Count) { return }
+        @{ appId = Get-Str $entry 'appId'; reason = Get-Str $entry 'reason'; checks = $checks }
+    })
     foreach ($exclusion in $exclusions) {
         $id = [guid]::Empty; if (-not [guid]::TryParse((Get-Str $exclusion 'appId'), [ref]$id) -or $id -eq [guid]::Empty) { throw 'Each exclusion must have a valid application/client appId.' }
         if ([string]::IsNullOrWhiteSpace((Get-Str $exclusion 'reason'))) { throw 'Each exclusion must have a reason.' }
@@ -114,19 +123,19 @@ function New-AdminOwnerFinding {
     return New-Finding $Rule $status $evidence
 }
 
-#= Description policy currently requires content without prescribing a standard text
-function New-DescriptionFinding {
-    param([string]$Rule, [string]$Label, $Object, [bool]$Required = $true, [string]$Field = 'description')
-    $status = if (-not $Required) { 'SKIPPED' } elseif ([string]::IsNullOrWhiteSpace((Get-Str $Object $Field))) { 'WARN' } else { 'PASS' }
-    $evidence = if ($status -eq 'WARN') { "⚠ $Label $Field is empty. A nonempty $Field is required." } else { "$Label $Field is populated. No standard wording requirement is applied." }
-    if (-not $Required) { $evidence = "$Field check disabled in configuration." }
-    return New-Finding $Rule $status $evidence
+#= Require portal-editable SPN Notes without prescribing standard wording
+function New-NotesFinding {
+    param($Object, [bool]$Required = $true)
+    $status = if (-not $Required) { 'SKIPPED' } elseif ([string]::IsNullOrWhiteSpace((Get-Str $Object 'notes'))) { 'WARN' } else { 'PASS' }
+    $evidence = if ($status -eq 'WARN') { 'Enterprise application / SPN Notes are empty. Fill in Properties > Notes in the Entra portal.' } else { 'Enterprise application / SPN Notes are populated. No standard wording requirement is applied.' }
+    if (-not $Required) { $evidence = 'Notes check disabled in configuration.' }
+    return New-Finding 'Notes' $status $evidence
 }
 
 #= Replace obsolete checks and evaluate each object separately
 function Update-AppGovernance {
     param([System.Collections.IDictionary]$App, $Configuration = (Get-ReportRuleConfiguration @{}))
-    $rules = @('AssignmentRequired','RedirectUriSecurity','CredentialDates','FederatedCredentials','GroupAssignmentsPreferred','TwoHumanOwners','ProtocolConfirmation','AuthenticationAndClaims','SamlVerificationAndEncryption','OperationsAndDocumentation','EnterpriseAdminOwner','RegistrationAdminOwner','EnterpriseDescription','RegistrationDescription')
+    $rules = @('AssignmentRequired','RedirectUriSecurity','CredentialDates','FederatedCredentials','GroupAssignmentsPreferred','TwoHumanOwners','ProtocolConfirmation','AuthenticationAndClaims','SamlVerificationAndEncryption','OperationsAndDocumentation','EnterpriseAdminOwner','RegistrationAdminOwner','Notes','EnterpriseDescription','RegistrationDescription')
     $findings = [Collections.Generic.List[object]]::new()
     @((Get-Val $App 'findings')) | Where-Object { $null -ne $_ -and (Get-Str $_ 'rule') -notin $rules } | ForEach-Object { $findings.Add($_) }
     $policy = $Configuration.rules
@@ -134,19 +143,16 @@ function Update-AppGovernance {
     if (Get-Str $App 'servicePrincipalId') {
         $availability = Get-Str $App 'ownerEvidenceStatus'; if (-not $availability) { $availability = 'AVAILABLE' }
         $findings.Add((New-AdminOwnerFinding 'EnterpriseAdminOwner' 'Enterprise application / SPN' (Get-Val $App 'owners') $availability $policy.ownerUpnPrefix $policy.minimumEnterpriseAdminOwners))
-        $findings.Add((New-DescriptionFinding 'EnterpriseDescription' 'Enterprise application / SPN' $App $policy.requireEnterpriseDescription 'notes'))
+        $findings.Add((New-NotesFinding $App $policy.requireNotes))
     }
     $registration = Get-Val $App 'registration'
     if ($null -ne $registration) {
         $owners = Get-Val $registration 'owners'; $availability = Get-Str $owners 'status'
         $findings.Add((New-AdminOwnerFinding 'RegistrationAdminOwner' 'App registration' (Get-Val $owners 'items') $availability $policy.ownerUpnPrefix $policy.minimumRegistrationAdminOwners))
-        $findings.Add((New-DescriptionFinding 'RegistrationDescription' 'App registration' $registration $policy.requireRegistrationDescription))
     }
     else {
         $status = if (Get-Val $App 'registrationAvailable') { 'UNKNOWN' } else { 'NOT_APPLICABLE' }
         $findings.Add((New-Finding 'RegistrationAdminOwner' $status 'No local app registration evidence. An external home-tenant registration cannot be checked from this tenant.'))
-        if ($policy.requireRegistrationDescription) { $findings.Add((New-Finding 'RegistrationDescription' $status 'No local app registration evidence. An external home-tenant description cannot be checked from this tenant.')) }
-        else { $findings.Add((New-DescriptionFinding 'RegistrationDescription' 'App registration' $null $false)) }
     }
     Set-ReportFindingExclusions $App $findings $Configuration
     $App['findings'] = $findings.ToArray()

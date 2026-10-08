@@ -11,7 +11,7 @@ This directory contains the production report pipeline. GitHub Actions is the su
 | [Write-ActionSummary.ps1](Write-ActionSummary.ps1) | Reads saved JSON and writes the expandable Actions summary, including the artifact link. Does not call Graph. | Required parameters: `ReportPath`, `ArtifactUrl`, `OutputPath`. |
 | [Report.Common.ps1](Report.Common.ps1) | Dictionary helpers, Graph requests and pagination, logging, base inventory construction, configuration/context validation and artifact orchestration. Loads the rule library. | `Get-Val`, `Get-Str`, `Invoke-MgGetAll`, `Get-LiveAppReport`, `Read-ReportDeployment`, `Assert-ReportDeploymentContext`, `Export-AppReport`. |
 | [Report.Evidence.ps1](Report.Evidence.ps1) | Enriches registrations and applications with owners, employee-ID contact matches, federation and permissions evidence. Builds indexes to avoid repeated scans. | `Add-ExtendedEvidence`, `Get-OptionalEvidence`, `Get-RegistrationEvidence`, `Add-AppEvidence`, `Add-OwnerContactEvidence`, `Set-OwnerContactEvidence`. |
-| [Report.Rules.ps1](Report.Rules.ps1) | The single source of configuration-check decisions, credential date rules, owner/description rules and exclusions. Re-evaluates saved data. | `Get-ReportRuleConfiguration`, `Update-ReportCredentialPolicy`, `Update-AppGovernance`, `Update-ReportGovernance`. |
+| [Report.Rules.ps1](Report.Rules.ps1) | The single source of configuration-check decisions, credential date rules, owner/Notes rules and exclusions. Re-evaluates saved data. | `Get-ReportRuleConfiguration`, `Update-ReportCredentialPolicy`, `Update-AppGovernance`, `Update-ReportGovernance`. |
 | [Report.Render.ps1](Report.Render.ps1) | Shared report entries, per-check statistics, application details, HTML, Actions Markdown and detailed CSV exports. | `Get-ReportResults`, `Export-ReportHtml`, `Export-ReportSummary`, `Export-DetailCsv`. |
 
 `Report.*.ps1` files are function libraries loaded by dot-sourcing. Running a library directly does not generate a report. Collection constructs metadata with unevaluated statuses; `Report.Rules.ps1` evaluates it after enrichment. Do not reintroduce rule decisions into the collector.
@@ -47,7 +47,7 @@ Evidence wrappers use `{ status, items, reason }`, where availability is `AVAILA
 
 Owner contact fields are `employeeId`, `userEmail`, `contactUserId`, `contactUserPrincipalName` and `contactMatchStatus`. Matching requires exactly one account with the same nonempty employee ID and a UPN outside `rules.ownerUpnPrefix`; a regular owner may match itself. Only the matched account's `mail` is used, never its UPN as a fallback. Statuses are `MATCHED`, `MISSING_EMPLOYEE_ID`, `NO_REGULAR_ACCOUNT`, `AMBIGUOUS`, `MISSING_USER_EMAIL`, `OWNER_USER_NOT_FOUND` and `NOT_APPLICABLE` for non-user owners. Contact matching does not change check results. User catalog failures stop collection rather than presenting missing permission as missing employee IDs. The catalog stays in memory and is not serialized; only owner and matched-contact evidence is retained. Email delivery is not implemented.
 
-A finding uses `{ rule, status, evidence }`. Keep rule IDs stable: config exclusions, statistics and filter tags depend on them. The nine current rule IDs are `AssignmentRequired`, `RedirectUriSecurity`, `CredentialDates`, `FederatedCredentials`, `GroupAssignmentsPreferred`, `EnterpriseAdminOwner`, `EnterpriseDescription`, `RegistrationAdminOwner` and `RegistrationDescription`.
+A finding uses `{ rule, status, evidence }`. Keep rule IDs stable: config exclusions, statistics and filter tags depend on them. The eight current rule IDs are `AssignmentRequired`, `RedirectUriSecurity`, `CredentialDates`, `FederatedCredentials`, `GroupAssignmentsPreferred`, `EnterpriseAdminOwner`, `Notes`, `RegistrationAdminOwner`.
 
 | Finding status | Meaning / application result |
 |---|---|
@@ -58,13 +58,12 @@ A finding uses `{ rule, status, evidence }`. Keep rule IDs stable: config exclus
 | `SKIPPED` | Disabled or excluded, with an explanation. Does not count as PASS. |
 | `NOT_APPLICABLE` | The check cannot apply to the collected object, such as a registration in an external home tenant. Does not count as PASS. |
 
-An application with only skipped/not-applicable checks is Skipped when any check is SKIPPED; otherwise its overall status is UNKNOWN. Standalone registrations have credential-date, federation, registration-owner and registration-description checks; enterprise-specific checks require a service-principal ID.
+An application with only skipped/not-applicable checks is Skipped when any check is SKIPPED; otherwise its overall status is UNKNOWN. Standalone registrations have credential-date, federation and registration-owner checks; enterprise-specific checks require a service-principal ID.
 
 `Get-ReportResults` combines enterprise applications with unmatched registrations, so linked registrations are not separate report entries. It adds one **Report rules and scope** entry marked Investigate. Consequently, overall dashboard counts include that entry. Per-check statistics exclude it and count each application once per check.
 
 Disabled checks and app exclusions are applied after evaluation and remain visible as SKIPPED. Exclusions match the Application (client) ID. The owner rule recognizes user owners by the configured UPN prefix; it does not verify directory roles or MFA. API permissions are informational. Federation configuration is evaluated separately by `FederatedCredentials`. Delegated consent grants and tenant policies are not collected. No sign-in logs, audit logs or application authentication tests are performed.
 
-Description requirements are independent: `requireEnterpriseDescription` and `requireRegistrationDescription`. Admin-owner minimums are independent: `minimumEnterpriseAdminOwners` and `minimumRegistrationAdminOwners`. Legacy `requireDescriptions` and `minimumAdminOwners` provide defaults when the corresponding separate settings are absent. The resolved settings are saved with each report. Use the separate check IDs in `disabledChecks` and `exclusions` to disable other checks independently for either object.
 
 `RedirectUriSecurity` validates existing redirect URLs only. With validation enabled, an empty URL list produces NOT_APPLICABLE, insecure or malformed URLs produce FAIL, and valid URLs produce PASS. Disabling `requireRedirectUris` produces SKIPPED. Keep this behavior consistent for service applications without interactive callbacks.
 
@@ -120,8 +119,9 @@ Export-ReportSummary $report 'https://github.com/OWNER/REPO/actions' (Join-Path 
 
 Saved configuration is used unless `report.ruleConfiguration` is replaced before evaluation. Credential expiry is evaluated at render time; rendering the same snapshot later can legitimately change its status. Review generated HTML, tags, statistics and Markdown. Compare app results and CSV output when refactoring.
 
-For rule changes, verify valid, expired, near-expiry and malformed credential dates; custom thresholds; missing/non-admin owners; empty descriptions; disabled checks; whole-app and per-check exclusions; external registrations; and standalone registrations. After UI/template changes, also check generated JavaScript syntax and filter transitions, including clearing stale tag selections.
+For rule changes, verify valid, expired, near-expiry and malformed credential dates; custom thresholds; missing/non-admin owners; empty Notes; disabled checks; whole-app and per-check exclusions; external registrations; and standalone registrations. After UI/template changes, also check generated JavaScript syntax and filter transitions, including clearing stale tag selections.
 
 Use the separate lab tooling for live collection checks before production use. Verify the connected tenant and client, inspect availability failures and keep real tenant reports untracked. Do not restore local launchers, lab IDs, test archives or credentials to this production repository.
 
-`EnterpriseDescription` reads SPN `notes`, matching the Notes field under Enterprise applications → Properties in Entra. The collector selects and persists `notes`; the HTML and Actions profile shows Enterprise application Notes. Keep the existing check ID and `requireEnterpriseDescription` config name for compatibility. RegistrationDescription continues to read registration `description`. Recollect legacy JSON without `notes` before using the updated check.
+
+Notes is checked only on the enterprise application / SPN. There is no app registration description check. Legacy description settings and exclusions are normalized to Notes where applicable; removed registration-description findings are stripped when reevaluating older JSON. New configurations use `requireNotes` and check ID `Notes`.

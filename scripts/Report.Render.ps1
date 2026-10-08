@@ -76,7 +76,6 @@ function Get-ReportAppDetails {
     }
     $rows.Add(@('Sign-in audience', (Get-Val $registration 'signInAudience')))
     $rows.Add(@('Enterprise application Notes', (Get-Val $App 'notes')))
-    $rows.Add(@('App registration description', (Get-Val $registration 'description')))
     [void]$text.Append((New-ReportSection 'Application profile' @('Property','Value') $rows))
     $rows.Clear()
     foreach ($source in @(@{ name = 'Enterprise application'; items = Get-Val $App 'owners' }, @{ name = 'App registration'; items = Get-Val (Get-Val $registration 'owners') 'items' })) {
