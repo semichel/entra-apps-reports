@@ -66,6 +66,8 @@ Disabled checks and app exclusions are applied after evaluation and remain visib
 
 Description requirements are independent: `requireEnterpriseDescription` and `requireRegistrationDescription`. Admin-owner minimums are independent: `minimumEnterpriseAdminOwners` and `minimumRegistrationAdminOwners`. Legacy `requireDescriptions` and `minimumAdminOwners` provide defaults when the corresponding separate settings are absent. The resolved settings are saved with each report. Use the separate check IDs in `disabledChecks` and `exclusions` to disable other checks independently for either object.
 
+`RedirectUriSecurity` validates existing redirect URLs only. With validation enabled, an empty URL list produces NOT_APPLICABLE, insecure or malformed URLs produce FAIL, and valid URLs produce PASS. Disabling `requireRedirectUris` produces SKIPPED. Keep this behavior consistent for service applications without interactive callbacks.
+
 ## Outputs and templates
 
 | Output | Coverage |

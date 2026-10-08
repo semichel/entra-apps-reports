@@ -70,9 +70,9 @@ function Get-ConfiguredCoreFindings {
     New-Finding 'AssignmentRequired' $status ('Assignment required: {0}; rule enforced: {1}.' -f $assignment, $Rules.requireAssignment)
     $urls = @((Get-Val $App 'redirectUris') | Where-Object { $null -ne $_ })
     $invalid = @($urls | Where-Object { $uri = $null; -not [uri]::TryCreate([string]$_, [UriKind]::Absolute, [ref]$uri) -or ($uri.Scheme -ne 'https' -and -not ($Rules.allowLocalhostHttp -and $uri.Scheme -eq 'http' -and $uri.Host -in @('localhost','127.0.0.1','[::1]'))) })
-    $status = if (-not $Rules.requireRedirectUris) { 'SKIPPED' } elseif ($invalid.Count -or -not $urls.Count) { 'FAIL' } else { 'PASS' }
+    $status = if (-not $Rules.requireRedirectUris) { 'SKIPPED' } elseif (-not $urls.Count) { 'NOT_APPLICABLE' } elseif ($invalid.Count) { 'FAIL' } else { 'PASS' }
     $evidence = 'Redirect URLs: {0}; invalid URLs: {1}; localhost HTTP allowed: {2}; rule enforced: {3}.' -f $urls.Count, ($invalid -join ', '), $Rules.allowLocalhostHttp, $Rules.requireRedirectUris
-    if ($Rules.requireRedirectUris -and -not $urls.Count) { $evidence += ' A redirect URL is required by configuration but none was collected. For app-only automation without user redirects, exclude RedirectUriSecurity for the application client ID with a reason.' }
+    if ($Rules.requireRedirectUris -and -not $urls.Count) { $evidence += ' No redirect URLs are configured in the collected evidence; redirect security is not applicable. This does not prevent the application from passing.' }
     New-Finding 'RedirectUriSecurity' $status $evidence
     $assignments = @((Get-Val $App 'assignments') | Where-Object { $null -ne $_ })
     $groups = @($assignments | Where-Object { (Get-Str $_ 'principalType') -eq 'Group' })

@@ -27,7 +27,7 @@ Owners show **Owner account** and **User email** in HTML, the Actions summary an
 | `requireRegistrationDescription` | Require a nonempty app registration description: `RegistrationDescription`. Default `true`; empty or whitespace-only values produce WARN. No standard wording is enforced. |
 | `requireAssignment` | User assignment required must be enabled; otherwise FAIL: `AssignmentRequired`. |
 | `requireGroupAssignment` | At least one assigned group; otherwise WARN. Direct user assignments may also exist: `GroupAssignmentsPreferred`. |
-| `requireRedirectUris`, `allowLocalhostHttp` | Redirect URLs must exist and use HTTPS, with localhost HTTP allowed by default. Invalid or missing URLs produce FAIL: `RedirectUriSecurity`. |
+| `requireRedirectUris`, `allowLocalhostHttp` | Validate configured redirect URLs for HTTPS, with localhost HTTP allowed by default. Invalid URLs produce FAIL; no URLs produce NOT_APPLICABLE and do not prevent Passed: `RedirectUriSecurity`. `requireRedirectUris` enables validation; it does not require a URL to exist. |
 | `maxSecretLifetimeDays`, `maxCertificateLifetimeDays` | Maximum lifetime **90** days for secrets and **365** days for certificates. Expired credentials, invalid date ranges or excessive lifetime produce FAIL: `CredentialDates`. |
 | `credentialWarningDays` | WARN at **30** or fewer whole days remaining. Future start dates also produce WARN. |
 
