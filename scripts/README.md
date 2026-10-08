@@ -47,7 +47,7 @@ Evidence wrappers use `{ status, items, reason }`, where availability is `AVAILA
 
 Owner contact fields are `employeeId`, `userEmail`, `contactUserId`, `contactUserPrincipalName` and `contactMatchStatus`. Matching requires exactly one account with the same nonempty employee ID and a UPN outside `rules.ownerUpnPrefix`; a regular owner may match itself. Only the matched account's `mail` is used, never its UPN as a fallback. Statuses are `MATCHED`, `MISSING_EMPLOYEE_ID`, `NO_REGULAR_ACCOUNT`, `AMBIGUOUS`, `MISSING_USER_EMAIL`, `OWNER_USER_NOT_FOUND` and `NOT_APPLICABLE` for non-user owners. Contact matching does not change check results. User catalog failures stop collection rather than presenting missing permission as missing employee IDs. The catalog stays in memory and is not serialized; only owner and matched-contact evidence is retained. Email delivery is not implemented.
 
-A finding uses `{ rule, status, evidence }`. Keep rule IDs stable: config exclusions, statistics and filter tags depend on them. The eight current rule IDs are `AssignmentRequired`, `RedirectUriSecurity`, `CredentialDates`, `FederatedCredentials`, `GroupAssignmentsPreferred`, `EnterpriseAdminOwner`, `Notes`, `RegistrationAdminOwner`.
+A finding uses `{ rule, status, evidence }`. Keep rule IDs stable: config exclusions, statistics and filter tags depend on them. The seven current rule IDs are `Assignments`, `RedirectUriSecurity`, `CredentialDates`, `FederatedCredentials`, `EnterpriseAdminOwner`, `Notes`, `RegistrationAdminOwner`.
 
 | Finding status | Meaning / application result |
 |---|---|

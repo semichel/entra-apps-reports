@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 #= Merge defaults and reject invalid policy settings before collection
 function Get-ReportRuleConfiguration {
     param($Config)
-    $defaults = [ordered]@{ ownerUpnPrefix = 'azadmu'; minimumAdminOwners = 1; requireNotes = $true; requireAssignment = $true; requireGroupAssignment = $true; requireRedirectUris = $true; allowLocalhostHttp = $true; maxSecretLifetimeDays = 90; maxCertificateLifetimeDays = 365; credentialWarningDays = 30 }
+    $defaults = [ordered]@{ ownerUpnPrefix = 'azadmu'; minimumAdminOwners = 1; requireNotes = $true; requireAssignment = $true; requireRedirectUris = $true; allowLocalhostHttp = $true; maxSecretLifetimeDays = 90; maxCertificateLifetimeDays = 365; credentialWarningDays = 30 }
     $rules = Get-Val $Config 'rules'
     if ($null -eq $rules) { $rules = @{} }
     if ($null -ne $rules -and $rules -isnot [Collections.IDictionary]) { throw 'rules must be a JSON object.' }
@@ -13,13 +13,13 @@ function Get-ReportRuleConfiguration {
         if ($normalizedRules.ContainsKey('requireEnterpriseDescription')) { $normalizedRules['requireNotes'] = $normalizedRules['requireEnterpriseDescription'] }
         elseif ($normalizedRules.ContainsKey('requireDescriptions')) { $normalizedRules['requireNotes'] = $normalizedRules['requireDescriptions'] }
     }
-    foreach ($key in @('requireEnterpriseDescription','requireRegistrationDescription','requireDescriptions')) { $normalizedRules.Remove($key) }
+    foreach ($key in @('requireEnterpriseDescription','requireRegistrationDescription','requireDescriptions','requireGroupAssignment')) { $normalizedRules.Remove($key) }
     $rules = $normalizedRules
     $defaults['minimumEnterpriseAdminOwners'] = 1; $defaults['minimumRegistrationAdminOwners'] = 1
     foreach ($key in @($rules.Keys)) {
         if ($key -notin @($defaults.Keys)) { throw "Unknown rule setting: $key." }; $defaults[$key] = Get-Val $rules $key
     }
-    foreach ($key in @('requireNotes','requireAssignment','requireGroupAssignment','requireRedirectUris','allowLocalhostHttp')) {
+    foreach ($key in @('requireNotes','requireAssignment','requireRedirectUris','allowLocalhostHttp')) {
         if ($defaults[$key] -isnot [bool]) { throw "$key must be true or false." }
     }
     foreach ($key in @('minimumAdminOwners','minimumEnterpriseAdminOwners','minimumRegistrationAdminOwners','maxSecretLifetimeDays','maxCertificateLifetimeDays','credentialWarningDays')) {
@@ -28,14 +28,14 @@ function Get-ReportRuleConfiguration {
     if (-not $rules.Contains('minimumEnterpriseAdminOwners')) { $defaults['minimumEnterpriseAdminOwners'] = $defaults['minimumAdminOwners'] }
     if (-not $rules.Contains('minimumRegistrationAdminOwners')) { $defaults['minimumRegistrationAdminOwners'] = $defaults['minimumAdminOwners'] }
     if ($defaults.ownerUpnPrefix -isnot [string] -or [string]::IsNullOrWhiteSpace($defaults.ownerUpnPrefix) -or $defaults.ownerUpnPrefix -match '[\s*?\[\]@]') { throw 'ownerUpnPrefix must be a nonempty literal UPN prefix without spaces, @ or wildcards.' }
-    $names = @('AssignmentRequired','RedirectUriSecurity','CredentialDates','FederatedCredentials','GroupAssignmentsPreferred','EnterpriseAdminOwner','RegistrationAdminOwner','Notes')
-    $disabled = @((Get-Val $Config 'disabledChecks') | Where-Object { $null -ne $_ -and $_ -ne 'RegistrationDescription' } | ForEach-Object { if ($_ -eq 'EnterpriseDescription') { 'Notes' } else { $_ } })
+    $names = @('Assignments','RedirectUriSecurity','CredentialDates','FederatedCredentials','EnterpriseAdminOwner','RegistrationAdminOwner','Notes')
+    $disabled = @((Get-Val $Config 'disabledChecks') | Where-Object { $null -ne $_ -and $_ -notin @('RegistrationDescription','GroupAssignmentsPreferred') } | ForEach-Object { if ($_ -eq 'EnterpriseDescription') { 'Notes' } elseif ($_ -eq 'AssignmentRequired') { 'Assignments' } else { $_ } })
     foreach ($name in $disabled) {
         if ($name -notin $names) { throw "Unknown disabled check: $name." }
     }
     $exclusions = @((Get-Val $Config 'exclusions') | Where-Object { $null -ne $_ } | ForEach-Object {
         $entry = $_; $oldChecks = @((Get-Val $entry 'checks') | Where-Object { $null -ne $_ })
-        $checks = @($oldChecks | Where-Object { $_ -ne 'RegistrationDescription' } | ForEach-Object { if ($_ -eq 'EnterpriseDescription') { 'Notes' } else { $_ } })
+        $checks = @($oldChecks | Where-Object { $_ -notin @('RegistrationDescription','GroupAssignmentsPreferred') } | ForEach-Object { if ($_ -eq 'EnterpriseDescription') { 'Notes' } elseif ($_ -eq 'AssignmentRequired') { 'Assignments' } else { $_ } })
         if ($oldChecks.Count -and -not $checks.Count) { return }
         @{ appId = Get-Str $entry 'appId'; reason = Get-Str $entry 'reason'; checks = $checks }
     })
@@ -81,19 +81,15 @@ function Get-ConfiguredCoreFindings {
     New-Finding 'FederatedCredentials' $status $evidence
     if (-not (Get-Str $App 'servicePrincipalId')) { return }
     $assignment = Get-Val $App 'assignmentRequired'
-    $status = if (-not $Rules.requireAssignment) { 'SKIPPED' } elseif ($null -eq $assignment) { 'UNKNOWN' } elseif ($assignment -eq $true) { 'PASS' } else { 'FAIL' }
-    New-Finding 'AssignmentRequired' $status ('Assignment required: {0}; rule enforced: {1}.' -f $assignment, $Rules.requireAssignment)
+    $assignments = @((Get-Val $App 'assignments') | Where-Object { $null -ne $_ })
+    $status = if (-not $Rules.requireAssignment) { 'SKIPPED' } elseif ($null -eq $assignment) { 'UNKNOWN' } elseif ($assignment -eq $true -and $assignments.Count -gt 0) { 'PASS' } else { 'FAIL' }
+    New-Finding 'Assignments' $status ('Assignment required: {0}; assignments: {1}; rule enforced: {2}. Requires assignment restriction enabled and at least one assignment. Groups, users and service principals are equally accepted; membership and suitability are not evaluated.' -f $assignment, $assignments.Count, $Rules.requireAssignment)
     $urls = @((Get-Val $App 'redirectUris') | Where-Object { $null -ne $_ })
     $invalid = @($urls | Where-Object { $uri = $null; -not [uri]::TryCreate([string]$_, [UriKind]::Absolute, [ref]$uri) -or ($uri.Scheme -ne 'https' -and -not ($Rules.allowLocalhostHttp -and $uri.Scheme -eq 'http' -and $uri.Host -in @('localhost','127.0.0.1','[::1]'))) })
     $status = if (-not $Rules.requireRedirectUris) { 'SKIPPED' } elseif (-not $urls.Count) { 'NOT_APPLICABLE' } elseif ($invalid.Count) { 'FAIL' } else { 'PASS' }
     $evidence = 'Redirect URLs: {0}; invalid URLs: {1}; localhost HTTP allowed: {2}; rule enforced: {3}.' -f $urls.Count, ($invalid -join ', '), $Rules.allowLocalhostHttp, $Rules.requireRedirectUris
     if ($Rules.requireRedirectUris -and -not $urls.Count) { $evidence += ' No redirect URLs are configured in the collected evidence; redirect security is not applicable. This does not prevent the application from passing.' }
     New-Finding 'RedirectUriSecurity' $status $evidence
-    $assignments = @((Get-Val $App 'assignments') | Where-Object { $null -ne $_ })
-    $groups = @($assignments | Where-Object { (Get-Str $_ 'principalType') -eq 'Group' })
-    $users = @($assignments | Where-Object { (Get-Str $_ 'principalType') -eq 'User' })
-    $status = if (-not $Rules.requireGroupAssignment) { 'SKIPPED' } elseif ($groups.Count) { 'PASS' } else { 'WARN' }
-    New-Finding 'GroupAssignmentsPreferred' $status ('Groups: {0}; direct users: {1}; rule enforced: {2}.' -f $groups.Count, $users.Count, $Rules.requireGroupAssignment)
 }
 
 #= Re-evaluate stored credential metadata against configured date limits
@@ -135,7 +131,7 @@ function New-NotesFinding {
 #= Replace obsolete checks and evaluate each object separately
 function Update-AppGovernance {
     param([System.Collections.IDictionary]$App, $Configuration = (Get-ReportRuleConfiguration @{}))
-    $rules = @('AssignmentRequired','RedirectUriSecurity','CredentialDates','FederatedCredentials','GroupAssignmentsPreferred','TwoHumanOwners','ProtocolConfirmation','AuthenticationAndClaims','SamlVerificationAndEncryption','OperationsAndDocumentation','EnterpriseAdminOwner','RegistrationAdminOwner','Notes','EnterpriseDescription','RegistrationDescription')
+    $rules = @('Assignments','AssignmentRequired','RedirectUriSecurity','CredentialDates','FederatedCredentials','GroupAssignmentsPreferred','TwoHumanOwners','ProtocolConfirmation','AuthenticationAndClaims','SamlVerificationAndEncryption','OperationsAndDocumentation','EnterpriseAdminOwner','RegistrationAdminOwner','Notes','EnterpriseDescription','RegistrationDescription')
     $findings = [Collections.Generic.List[object]]::new()
     @((Get-Val $App 'findings')) | Where-Object { $null -ne $_ -and (Get-Str $_ 'rule') -notin $rules } | ForEach-Object { $findings.Add($_) }
     $policy = $Configuration.rules

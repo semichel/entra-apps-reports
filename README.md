@@ -24,8 +24,7 @@ Owners show **Owner account** and **User email** in HTML, the Actions summary an
 | `minimumEnterpriseAdminOwners` | Minimum admin owners on the enterprise application / SPN, default **1**: `EnterpriseAdminOwner`. |
 | `minimumRegistrationAdminOwners` | Minimum admin owners on the app registration, default **1**: `RegistrationAdminOwner`. |
 | `requireNotes` | Require nonempty **Notes** on the enterprise application / SPN: `Notes`. Edit under Enterprise applications → select app → Properties → Notes → Save. Default `true`; empty or whitespace-only values produce WARN. |
-| `requireAssignment` | User assignment required must be enabled; otherwise FAIL: `AssignmentRequired`. |
-| `requireGroupAssignment` | At least one assigned group; otherwise WARN. Direct user assignments may also exist: `GroupAssignmentsPreferred`. |
+| `requireAssignment` | Assignment required must be enabled and at least one group, user or service principal must be assigned; otherwise FAIL: `Assignments`. No preference for groups over direct assignments. |
 | `requireRedirectUris`, `allowLocalhostHttp` | Validate configured redirect URLs for HTTPS, with localhost HTTP allowed by default. Invalid URLs produce FAIL; no URLs produce NOT_APPLICABLE and do not prevent Passed: `RedirectUriSecurity`. `requireRedirectUris` enables validation; it does not require a URL to exist. |
 | `maxSecretLifetimeDays`, `maxCertificateLifetimeDays` | Maximum lifetime **90** days for secrets and **365** days for certificates. Expired credentials, invalid date ranges or excessive lifetime produce FAIL: `CredentialDates`. |
 | `credentialWarningDays` | WARN at **30** or fewer whole days remaining. Future start dates also produce WARN. |
@@ -39,7 +38,7 @@ Set a `require...` setting to `false` to disable that requirement. Numeric setti
 
 ## Exclusions
 
-`disabledChecks` disables named checks for all applications, for example `["GroupAssignmentsPreferred"]`. Use `exclusions` for individual applications, identified by **Application (client) ID**:
+`disabledChecks` disables named checks for all applications, for example `["Assignments"]`. Use `exclusions` for individual applications, identified by **Application (client) ID**:
 
 ```json
 "exclusions": [

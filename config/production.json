@@ -6,7 +6,6 @@
     "minimumRegistrationAdminOwners": 1,
     "requireNotes": true,
     "requireAssignment": true,
-    "requireGroupAssignment": true,
     "requireRedirectUris": true,
     "allowLocalhostHttp": true,
     "maxSecretLifetimeDays": 90,
