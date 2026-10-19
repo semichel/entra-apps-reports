@@ -4,7 +4,11 @@ Read-only inventory and configuration checks for Entra app registrations and ent
 
 ## Run and view
 
-Run **Actions → Entra application report → Run workflow** on `main`. The Actions summary includes application results and statistics per check. Download the run's artifact for the self-contained HTML report and JSON/CSV evidence.
+Run **Actions → Entra application report → Run workflow** on `main`. The full interactive HTML report is published to **GitHub Pages**. Open it from the workflow's deployment link or **Settings → Pages → Visit site**. Actions contains links instead of an expanded report summary. JSON/CSV evidence and an offline HTML copy remain available in the run's artifact. Each successful deployment replaces the website with the latest report.
+
+In the company repository, set **Settings → Pages → Build and deployment → Source → GitHub Actions**, and configure **private Pages access**. Allow `main` to deploy to the `github-pages` environment and approve deployments if your organization requires it. Private/internal repository visibility alone does not guarantee private website access; deployment stops unless the Pages API reports `public=false`. If private Pages is unavailable on your plan/host, the workflow keeps the report artifact but does not publish the site. See [GitHub Pages access control](https://docs.github.com/en/enterprise-cloud@latest/pages/getting-started-with-github-pages/changing-the-visibility-of-your-github-pages-site).
+
+Report collection and Pages deployment use separate jobs. Keep the existing Entra federation subject for the collection job; the `github-pages` environment does not need an Entra credential. GitHub must allow the Pages upload/deploy actions on the chosen host and runner.
 
 Filter tags identify the check and result, for example `EnterpriseAdminOwner: FAIL`. Tag options follow the selected status, category, severity and search. Failed shows FAIL tags; Passed shows PASS tags; Investigate shows WARN/UNKNOWN tags.
 
@@ -12,7 +16,7 @@ The workflow uses federated authentication. Set `AZURE_TENANT_ID` and `AZURE_CLI
 
 The report application uses Microsoft Graph **Application permissions** `Application.Read.All` and `User.Read.All`, with tenant admin consent. `User.Read.All` is needed for employee-ID contact matching; basic user access does not include `employeeId`. Directory-wide access and policy access are not required. Delegated consent grants, Conditional Access policies and claims-mapping policies are not collected. Requested delegated permissions are shown with consent marked as not collected.
 
-Owners show **Owner account** and **User email** in HTML, the Actions summary and `owners.csv`. The report matches `employeeId` to exactly one regular user account whose UPN does not start with the configured `ownerUpnPrefix`, then uses that account's `mail`. A regular owner can match itself. Missing employee IDs, missing mail, missing matches and ambiguous matches are shown explicitly, with no email selected. Contact matching does not affect the configuration checks and does not send email. The user catalog is read once with only ID, name, UPN, employee ID and mail; only owner and matched-contact evidence is saved.
+Owners show **Owner account** and **User email** in the HTML website and `owners.csv`. The report matches `employeeId` to exactly one regular user account whose UPN does not start with the configured `ownerUpnPrefix`, then uses that account's `mail`. A regular owner can match itself. Missing employee IDs, missing mail, missing matches and ambiguous matches are shown explicitly, with no email selected. Contact matching does not affect the configuration checks and does not send email. The user catalog is read once with only ID, name, UPN, employee ID and mail; only owner and matched-contact evidence is saved.
 
 ## Configuration
 

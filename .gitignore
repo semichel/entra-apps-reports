@@ -1,4 +1,5 @@
 reports/
+site/
 *.local.json
 *.log
 *.pfx

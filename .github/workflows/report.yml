@@ -2,6 +2,9 @@ name: Entra application report
 run-name: Entra application report - ${{ github.ref_name }}
 on:
   workflow_dispatch:
+concurrency:
+  group: entra-report-pages
+  cancel-in-progress: false
 permissions:
   contents: read
   id-token: write
@@ -67,9 +70,49 @@ jobs:
           name: entra-apps-report-${{ github.run_number }}
           path: reports/latest/
           if-no-files-found: error
-      - name: Publish report on the Actions Summary page
-        shell: pwsh
+      - name: Link report evidence artifact
         env:
           REPORT_ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
         run: |
-          ./scripts/Write-ActionSummary.ps1 -ReportPath reports/latest/report.json -ArtifactUrl $env:REPORT_ARTIFACT_URL -OutputPath $env:GITHUB_STEP_SUMMARY
+          "[Download report and JSON/CSV evidence]($env:REPORT_ARTIFACT_URL)" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+      - name: Prepare HTML website
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path site -Force | Out-Null
+          Copy-Item -LiteralPath reports/latest/report.html -Destination site/index.html
+          New-Item -ItemType File -Path site/.nojekyll -Force | Out-Null
+      - name: Upload Pages website
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site/
+  deploy:
+    needs: report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Require private Pages access
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:GH_HOST = ([uri]$env:GITHUB_SERVER_URL).Host
+          $site = gh api "repos/$env:GITHUB_REPOSITORY/pages"
+          if ($LASTEXITCODE -ne 0) { throw 'Configure Settings > Pages with GitHub Actions publishing and private site access before deploying. The report artifact remains available.' }
+          $pages = $site | ConvertFrom-Json -AsHashtable
+          if ($pages['public'] -isnot [bool] -or $pages['public']) { throw 'Pages must explicitly report public=false. A private repository alone does not protect the report website. Deployment stopped.' }
+      - name: Deploy interactive report
+        id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Link report website
+        shell: pwsh
+        env:
+          REPORT_PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          "## Entra application report`n`n[Open the interactive report]($env:REPORT_PAGE_URL)" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY

@@ -8,7 +8,7 @@ This directory contains the production report pipeline. GitHub Actions is the su
 |---|---|---|
 | [Validate-ProductionConfig.ps1](Validate-ProductionConfig.ps1) | Offline validation of reader IDs, tenant label, rules and exclusions. Does not authenticate or call Graph. | Script parameters: `ConfigPath`, `TenantId`, `ClientId`. |
 | [Export-EntraAppsReport.ps1](Export-EntraAppsReport.ps1) | Collects inventory using an existing Graph context, enriches it, evaluates rules and writes artifacts. | Script parameters: `ConfigPath`, `OutputDirectory`, `TenantId`, `ClientId`. |
-| [Write-ActionSummary.ps1](Write-ActionSummary.ps1) | Reads saved JSON and writes the expandable Actions summary, including the artifact link. Does not call Graph. | Required parameters: `ReportPath`, `ArtifactUrl`, `OutputPath`. |
+| [Write-ActionSummary.ps1](Write-ActionSummary.ps1) | Optional legacy Markdown export from saved JSON; no longer called by the production workflow. Does not call Graph. | Required parameters: `ReportPath`, `ArtifactUrl`, `OutputPath`. |
 | [Report.Common.ps1](Report.Common.ps1) | Dictionary helpers, Graph requests and pagination, logging, base inventory construction, configuration/context validation and artifact orchestration. Loads the rule library. | `Get-Val`, `Get-Str`, `Invoke-MgGetAll`, `Get-LiveAppReport`, `Read-ReportDeployment`, `Assert-ReportDeploymentContext`, `Export-AppReport`. |
 | [Report.Evidence.ps1](Report.Evidence.ps1) | Enriches registrations and applications with owners, employee-ID contact matches, federation and permissions evidence. Builds indexes to avoid repeated scans. | `Add-ExtendedEvidence`, `Get-OptionalEvidence`, `Get-RegistrationEvidence`, `Add-AppEvidence`, `Add-OwnerContactEvidence`, `Set-OwnerContactEvidence`. |
 | [Report.Rules.ps1](Report.Rules.ps1) | The single source of configuration-check decisions, credential date rules, owner/Notes rules and exclusions. Re-evaluates saved data. | `Get-ReportRuleConfiguration`, `Update-ReportCredentialPolicy`, `Update-AppGovernance`, `Update-ReportGovernance`. |
@@ -26,7 +26,8 @@ The reader requires only Microsoft Graph application permissions `Application.Re
 4. App registrations are collected once. Enterprise applications of type `Application` are collected and Microsoft-owned objects excluded using the owning tenant IDs, not display names. Owners and assignments are then collected for retained enterprise applications.
 5. `Add-ExtendedEvidence` reuses the registrations, collects federation and registration owners, resolves permission names from a service-principal catalog without querying delegated consent or tenant policies. User profiles are loaded once with pagination and indexed by object ID and employee ID for owner contact matching.
 6. `Export-AppReport` evaluates rules and writes JSON, findings CSV, HTML and detailed CSV files. Rendering also re-evaluates the data through the shared rules.
-7. The workflow uploads `reports/latest/` as an artifact. `Write-ActionSummary.ps1` reads its JSON and writes to `GITHUB_STEP_SUMMARY` using the uploaded artifact URL. Graph is disconnected in a `finally` block during collection.
+7. The workflow uploads `reports/latest/` as an evidence artifact and copies only the self-contained HTML to `site/index.html` with `.nojekyll` for a separate Pages artifact. Graph is disconnected in a `finally` block during collection.
+8. The dependent deploy job checks the existing Pages site's `public` property through the API and rejects public or unknown visibility. It deploys the Pages artifact to `github-pages` and writes a website link. A private/internal repository alone is insufficient. The deploy job has Pages write access but no Azure login; keeping its environment separate preserves the report job's existing Entra OIDC subject. Workflow-level concurrency prevents overlapping report deployments.
 
 The current workflow is manually dispatched and has a 30-minute timeout. A successful workflow means collection and publication succeeded; FAIL findings do not themselves cause a nonzero script exit. There is no separate notification or remediation step.
 
@@ -76,9 +77,10 @@ Disabled checks and app exclusions are applied after evaluation and remain visib
 | `findings.csv` | Findings for retained enterprise applications, including their registration checks. Standalone registration findings are not exported here. |
 | `owners.csv` | Owner account and contact-match evidence for both enterprise applications and all registrations. |
 | `assignments.csv`, `credentials.csv` | Detailed evidence for retained enterprise applications; these exclude standalone registrations. |
-| Actions summary | Application index, per-check statistics and expandable details. It is written to the path supplied by the workflow, not included as a separate artifact file by default. |
+| GitHub Pages | Latest full HTML report as `index.html`; evidence downloads remain in the run artifact. Requires preconfigured private Pages access and Actions publishing. |
+| Actions summary | Website and evidence-artifact links only. Full report statistics, filters and details are on the website. |
 
-The summary has a 1 MiB budget. Expanded details are truncated when necessary, with a notice and a link to the full artifact. The application index and statistics remain included if the summary fits; an oversized summary raises an error.
+The optional legacy Markdown exporter retains its 1 MiB budget and truncation notice, but does not participate in Pages publishing. Neither a website framework nor a frontend build is needed: Pages receives the same self-contained HTML that works offline. The privacy guard is not a substitute for maintaining the site's private access setting after deployment.
 
 | Template/asset | Purpose |
 |---|---|
