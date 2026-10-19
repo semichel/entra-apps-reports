@@ -20,14 +20,14 @@ The reader requires only Microsoft Graph application permissions `Application.Re
 
 ## Execution flow
 
-1. The workflow resolves `AZURE_TENANT_ID` and `AZURE_CLIENT_ID` from secrets, with variables as fallback. It validates their GUID format, the configuration, `main` and private/internal repository visibility.
+1. The workflow resolves `AZURE_TENANT_ID` and `AZURE_CLIENT_ID` from secrets, with variables as fallback. It validates their GUID format, the configuration, `main` and repository visibility.
 2. The runner installs Az and Microsoft.Graph.Authentication. `azure/login` authenticates through federation; the workflow obtains a Microsoft Graph token and connects Graph with that token.
 3. `Export-EntraAppsReport.ps1` validates the connected tenant, client and Global cloud against the supplied IDs before any inventory requests.
 4. App registrations are collected once. Enterprise applications of type `Application` are collected and Microsoft-owned objects excluded using the owning tenant IDs, not display names. Owners and assignments are then collected for retained enterprise applications.
 5. `Add-ExtendedEvidence` reuses the registrations, collects federation and registration owners, resolves permission names from a service-principal catalog without querying delegated consent or tenant policies. User profiles are loaded once with pagination and indexed by object ID and employee ID for owner contact matching.
 6. `Export-AppReport` evaluates rules and writes JSON, findings CSV, HTML and detailed CSV files. Rendering also re-evaluates the data through the shared rules.
 7. The workflow uploads `reports/latest/` as an evidence artifact and copies only the self-contained HTML to `site/index.html` with `.nojekyll` for a separate Pages artifact. Graph is disconnected in a `finally` block during collection.
-8. The dependent deploy job checks the existing Pages site's `public` property through the API and rejects public or unknown visibility. It deploys the Pages artifact to `github-pages` and writes a website link. A private/internal repository alone is insufficient. The deploy job has Pages write access but no Azure login; keeping its environment separate preserves the report job's existing Entra OIDC subject. Workflow-level concurrency prevents overlapping report deployments.
+8. The dependent deploy job checks the Pages public flag and repository visibility through the API. Unknown visibility is rejected. Public Pages is permitted for public repositories; private/internal repositories require private Pages access. It deploys the Pages artifact to `github-pages` and writes a website link. A private/internal repository alone is insufficient. The deploy job has Pages write access but no Azure login; keeping its environment separate preserves the report job's existing Entra OIDC subject. Workflow-level concurrency prevents overlapping report deployments.
 
 The current workflow is manually dispatched and has a 30-minute timeout. A successful workflow means collection and publication succeeded; FAIL findings do not themselves cause a nonzero script exit. There is no separate notification or remediation step.
 
@@ -77,10 +77,10 @@ Disabled checks and app exclusions are applied after evaluation and remain visib
 | `findings.csv` | Findings for retained enterprise applications, including their registration checks. Standalone registration findings are not exported here. |
 | `owners.csv` | Owner account and contact-match evidence for both enterprise applications and all registrations. |
 | `assignments.csv`, `credentials.csv` | Detailed evidence for retained enterprise applications; these exclude standalone registrations. |
-| GitHub Pages | Latest full HTML report as `index.html`; evidence downloads remain in the run artifact. Requires preconfigured private Pages access and Actions publishing. |
+| GitHub Pages | Latest full HTML report as `index.html`; evidence downloads remain in the run artifact. Requires Actions publishing; private/internal repositories also require private Pages access. |
 | Actions summary | Website and evidence-artifact links only. Full report statistics, filters and details are on the website. |
 
-The optional legacy Markdown exporter retains its 1 MiB budget and truncation notice, but does not participate in Pages publishing. Neither a website framework nor a frontend build is needed: Pages receives the same self-contained HTML that works offline. The privacy guard is not a substitute for maintaining the site's private access setting after deployment.
+The optional legacy Markdown exporter retains its 1 MiB budget and truncation notice, but does not participate in Pages publishing. Neither a website framework nor a frontend build is needed: Pages receives the same self-contained HTML that works offline. The access guard is not a substitute for maintaining repository and site access settings after deployment.
 
 | Template/asset | Purpose |
 |---|---|

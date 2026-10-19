@@ -38,7 +38,7 @@ jobs:
           if ($env:GITHUB_REF -ne 'refs/heads/main') { throw 'Select the main branch.' }
           $env:GH_HOST = ([uri]$env:GITHUB_SERVER_URL).Host
           $visibility = gh api "repos/$env:GITHUB_REPOSITORY" --jq '.visibility'
-          if ($LASTEXITCODE -ne 0 -or $visibility -notin @('private', 'internal')) { throw 'Use a private or internal company repository for production reports.' }
+          if ($LASTEXITCODE -ne 0 -or $visibility -notin @('public', 'private', 'internal')) { throw 'Could not verify repository visibility.' }
       - name: Install modules
         run: |
           $ErrorActionPreference = 'Stop'
@@ -96,7 +96,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Require private Pages access
+      - name: Validate Pages access
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -104,9 +104,12 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $env:GH_HOST = ([uri]$env:GITHUB_SERVER_URL).Host
           $site = gh api "repos/$env:GITHUB_REPOSITORY/pages"
-          if ($LASTEXITCODE -ne 0) { throw 'Configure Settings > Pages with GitHub Actions publishing and private site access before deploying. The report artifact remains available.' }
+          if ($LASTEXITCODE -ne 0) { throw 'Configure Settings > Pages with GitHub Actions publishing before deploying. The report artifact remains available.' }
           $pages = $site | ConvertFrom-Json -AsHashtable
-          if ($pages['public'] -isnot [bool] -or $pages['public']) { throw 'Pages must explicitly report public=false. A private repository alone does not protect the report website. Deployment stopped.' }
+          if ($pages['public'] -isnot [bool]) { throw 'Could not verify Pages visibility. Deployment stopped.' }
+          $visibility = gh api "repos/$env:GITHUB_REPOSITORY" --jq '.visibility'
+          if ($LASTEXITCODE -ne 0 -or $visibility -notin @('public', 'private', 'internal')) { throw 'Could not verify repository visibility. Deployment stopped.' }
+          if ($pages['public'] -and $visibility -ne 'public') { throw 'Private/internal repositories require private Pages access. Public Pages is allowed only for a public repository intended for public reports.' }
       - name: Deploy interactive report
         id: deployment
         uses: actions/deploy-pages@v4
