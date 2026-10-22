@@ -26,7 +26,7 @@ function Get-Str {
 
 #= Validate required report files before starting Graph collection
 function Assert-ReportPrerequisites {
-    foreach ($relativePath in @('Report.Render.ps1', 'Report.Rules.ps1', 'Report.Evidence.ps1', 'templates/report.html', 'templates/check-statistics.js', 'templates/report-filters.js', 'templates/saab-logo.png', 'templates/brand.css')) {
+    foreach ($relativePath in @('Report.Render.ps1', 'Report.Rules.ps1', 'Report.Evidence.ps1', 'templates/report.html', 'templates/check-statistics.js', 'templates/report-filters.js', 'templates/graph-overview.js', 'templates/application-details.js', 'templates/saab-logo.png', 'templates/brand.css')) {
         if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $relativePath) -PathType Leaf)) { throw "Missing report file: $relativePath. Copy the complete project before running; no inventory requests have been made." }
     }
 }
@@ -189,27 +189,35 @@ function New-AppReport {
     }
 }
 
-#= Render escaped HTML, CSV and JSON artifacts
+#= Read saved report data without contacting Graph
+function Read-ReportDatabase {
+    param([Parameter(Mandatory)][string]$Path)
+    $report = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -AsHashtable -Depth 100
+    if ($report -isnot [Collections.IDictionary]) { throw 'Report data must contain a JSON object.' }
+    if ((Get-Str $report 'schemaVersion') -notin @('2.0','3.0')) { throw 'Unsupported report schema. Expected 2.0 or 3.0.' }
+    foreach ($key in @('applications','registrations')) {
+        if ($report[$key] -isnot [array]) { throw "Report data must contain a $key array." }
+    }
+    return $report
+}
+
+#= Store JSON data and render HTML; manual export helpers remain available
 function Export-AppReport {
     param($Report, [string]$OutputDirectory)
     Update-ReportGovernance $Report
+    . (Join-Path $PSScriptRoot 'Report.Render.ps1')
+    $Report['schemaVersion'] = '3.0'
+    $Report['reportView'] = Get-ReportResults $Report
     New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
-    Write-ReportLog 'Writing report.json and findings.csv.'
-    $Report | ConvertTo-Json -Depth 40 | Set-Content -LiteralPath (Join-Path $OutputDirectory 'report.json') -Encoding utf8
-    $rows = @($Report.applications | ForEach-Object {
-        $app = $_
-        $app.findings | ForEach-Object {
-            [pscustomobject]@{ Application = Convert-CsvText $app.displayName; AppId = $app.appId; ServicePrincipalId = $app.servicePrincipalId; Rule = $_.rule; Status = $_.status; Evidence = Convert-CsvText $_.evidence }
-        }
-    })
-    if ($rows.Count) { $rows | Export-Csv -LiteralPath (Join-Path $OutputDirectory 'findings.csv') -NoTypeInformation -Encoding utf8 }
-    else { Set-Content -LiteralPath (Join-Path $OutputDirectory 'findings.csv') -Value '"Application","AppId","ServicePrincipalId","Rule","Status","Evidence"' }
-
+    Write-ReportLog 'Writing report.json.'
+    $Report | ConvertTo-Json -Depth 100 -EscapeHandling EscapeHtml -WarningAction Stop | Set-Content -LiteralPath (Join-Path $OutputDirectory 'report.json') -Encoding utf8
     . (Join-Path $PSScriptRoot 'Report.Render.ps1')
     Write-ReportLog 'Rendering the interactive HTML report with PowerShell.'
     Export-ReportHtml $Report (Join-Path $OutputDirectory 'report.html')
-    Write-ReportLog 'Exporting detailed evidence CSV files.'
-    Export-DetailCsv $Report $OutputDirectory
+    foreach ($legacyFile in @('findings.csv','owners.csv','assignments.csv','credentials.csv')) {
+        $legacyPath = Join-Path $OutputDirectory $legacyFile
+        if (Test-Path -LiteralPath $legacyPath -PathType Leaf) { Remove-Item -LiteralPath $legacyPath }
+    }
 }
 
 #= Load owners and assignments for one enterprise application

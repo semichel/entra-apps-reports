@@ -8,6 +8,7 @@ This directory contains the production report pipeline. GitHub Actions is the su
 |---|---|---|
 | [Validate-ProductionConfig.ps1](Validate-ProductionConfig.ps1) | Offline validation of reader IDs, tenant label, rules and exclusions. Does not authenticate or call Graph. | Script parameters: `ConfigPath`, `TenantId`, `ClientId`. |
 | [Export-EntraAppsReport.ps1](Export-EntraAppsReport.ps1) | Collects inventory using an existing Graph context, enriches it, evaluates rules and writes artifacts. | Script parameters: `ConfigPath`, `OutputDirectory`, `TenantId`, `ClientId`. |
+| [Render-EntraAppsReport.ps1](Render-EntraAppsReport.ps1) | Regenerates the original HTML report from saved JSON without Graph. | `DataPath`, optional `OutputPath`. |
 | [Write-ActionSummary.ps1](Write-ActionSummary.ps1) | Optional legacy Markdown export from saved JSON; no longer called by the production workflow. Does not call Graph. | Required parameters: `ReportPath`, `ArtifactUrl`, `OutputPath`. |
 | [Report.Common.ps1](Report.Common.ps1) | Dictionary helpers, Graph requests and pagination, logging, base inventory construction, configuration/context validation and artifact orchestration. Loads the rule library. | `Get-Val`, `Get-Str`, `Invoke-MgGetAll`, `Get-LiveAppReport`, `Read-ReportDeployment`, `Assert-ReportDeploymentContext`, `Export-AppReport`. |
 | [Report.Evidence.ps1](Report.Evidence.ps1) | Enriches registrations and applications with owners, employee-ID contact matches, federation and permissions evidence. Builds indexes to avoid repeated scans. | `Add-ExtendedEvidence`, `Get-OptionalEvidence`, `Get-RegistrationEvidence`, `Add-AppEvidence`, `Add-OwnerContactEvidence`, `Set-OwnerContactEvidence`. |
@@ -16,16 +17,16 @@ This directory contains the production report pipeline. GitHub Actions is the su
 
 `Report.*.ps1` files are function libraries loaded by dot-sourcing. Running a library directly does not generate a report. Collection constructs metadata with unevaluated statuses; `Report.Rules.ps1` evaluates it after enrichment. Do not reintroduce rule decisions into the collector.
 
-The reader requires only Microsoft Graph application permissions `Application.Read.All` and `User.Read.All`, with admin consent. `User.Read.All` is the least user read permission required for `employeeId` matching. Only `id`, `displayName`, `userPrincipalName`, `employeeId` and `mail` are selected. Do not request directory-wide, policy, log, mail-send or write permissions for this pipeline.
+The reader requires Microsoft Graph application permissions `Application.Read.All` and `User.Read.All`, with admin consent. `User.Read.All` is the least user read permission required for `employeeId` matching. Only `id`, `displayName`, `userPrincipalName`, `employeeId` and `mail` are selected. `RoleManagement.Read.Directory` adds direct active directory role evidence; failures are optional and remain visible as UNAVAILABLE. Do not request directory-wide, policy, log, mail-send or write permissions for this pipeline.
 
 ## Execution flow
 
 1. The workflow resolves `AZURE_TENANT_ID` and `AZURE_CLIENT_ID` from secrets, with variables as fallback. It validates their GUID format, the configuration, `main` and repository visibility.
 2. The runner installs Az and Microsoft.Graph.Authentication. `azure/login` authenticates through federation; the workflow obtains a Microsoft Graph token and connects Graph with that token.
 3. `Export-EntraAppsReport.ps1` validates the connected tenant, client and Global cloud against the supplied IDs before any inventory requests.
-4. App registrations are collected once. Enterprise applications of type `Application` are collected and Microsoft-owned objects excluded using the owning tenant IDs, not display names. Owners and assignments are then collected for retained enterprise applications.
-5. `Add-ExtendedEvidence` reuses the registrations, collects federation and registration owners, resolves permission names from a service-principal catalog without querying delegated consent or tenant policies. User profiles are loaded once with pagination and indexed by object ID and employee ID for owner contact matching.
-6. `Export-AppReport` evaluates rules and writes JSON, findings CSV, HTML and detailed CSV files. Rendering also re-evaluates the data through the shared rules.
+4. App registrations are collected once. Enterprise applications of type `Application` are collected, including Microsoft-owned objects categorized by owning tenant IDs. Owners and assignments are then collected for retained enterprise applications.
+5. `Add-ExtendedEvidence` reuses the registrations, collects federation and registration owners, resolves permission names from a service-principal catalog without querying delegated consent or tenant policies. Active directory role assignments are read once with `$expand=roleDefinition` and pagination; only assignments to reported application principals are retained. User profiles are loaded once with pagination and indexed by object ID and employee ID for owner contact matching.
+6. `Export-AppReport` evaluates rules and writes only JSON and HTML. It removes the four previous automatic CSV files after successful rendering. Manual CSV helper functions and original UI exports are retained.
 7. The workflow uploads `reports/latest/` as an evidence artifact and copies only the self-contained HTML to `site/index.html` with `.nojekyll` for a separate Pages artifact. Graph is disconnected in a `finally` block during collection.
 8. The dependent deploy job checks the Pages public flag and repository visibility through the API. Unknown visibility is rejected. Public Pages is permitted for public repositories; private/internal repositories require private Pages access. It deploys the Pages artifact to `github-pages` and writes a website link. A private/internal repository alone is insufficient. The deploy job has Pages write access but no Azure login; keeping its environment separate preserves the report job's existing Entra OIDC subject. Workflow-level concurrency prevents overlapping report deployments.
 
@@ -33,7 +34,7 @@ The current workflow is manually dispatched and has a 30-minute timeout. A succe
 
 ## Data and result contracts
 
-The final JSON schema version is `2.0`. Its main fields are:
+The final JSON schema version is `3.0`; version `2.0` input remains readable. A saved `reportView` contains the dashboard payload. JSON is the shared stored data; existing manual CSV exports remain available but are not generated during collection. The main inventory fields are:
 
 | Field | Contents |
 |---|---|
@@ -42,13 +43,17 @@ The final JSON schema version is `2.0`. Its main fields are:
 | `inventoryScope` | Microsoft-app exclusion flag and counts. |
 | `applications` | Retained enterprise applications with their linked registration, owners, assignments, credentials, permissions, findings and overall status. |
 | `registrations` | All collected app registrations, including those without a retained enterprise application. |
+| `applications[].directoryRoles`, `directoryRoleCoverage` | Direct active Entra directory role assignments and availability. No PIM eligibility, group inheritance or Azure RBAC. |
+| `reportView.Tests[].GraphAccess` | Normalized Graph permissions, grant/request distinction, directory roles, ranked `configurationRisks`, ranking reasons and evidence gaps. `Severity` ranks access and configuration findings, separate from `Result`. |
+| `reportView.Tests[].ApplicationPanels` | `failures`, `servicePrincipal`, `registration` and `shared` Markdown sections for the detail view. `failures` lists only exact FAIL findings and is displayed first when nonempty. The same sections are retained in `ResultDetail.TestResult` for existing exports. |
+| `reportView.Tests[].AppId`, `RegistrationId`, `ServicePrincipalId` | Client ID, app registration Object ID and enterprise application Object ID. Object IDs are displayed under their own panel headings; never substitute a client ID or SPN ID for a missing registration ID. |
 
 
 Evidence wrappers use `{ status, items, reason }`, where availability is `AVAILABLE` or `UNAVAILABLE`. Unavailable evidence must not be presented as a successful empty query. Credential records contain metadata, never secret values or certificate bytes.
 
 Owner contact fields are `employeeId`, `userEmail`, `contactUserId`, `contactUserPrincipalName` and `contactMatchStatus`. Matching requires exactly one account with the same nonempty employee ID and a UPN outside `rules.ownerUpnPrefix`; a regular owner may match itself. Only the matched account's `mail` is used, never its UPN as a fallback. Statuses are `MATCHED`, `MISSING_EMPLOYEE_ID`, `NO_REGULAR_ACCOUNT`, `AMBIGUOUS`, `MISSING_USER_EMAIL`, `OWNER_USER_NOT_FOUND` and `NOT_APPLICABLE` for non-user owners. Contact matching does not change check results. User catalog failures stop collection rather than presenting missing permission as missing employee IDs. The catalog stays in memory and is not serialized; only owner and matched-contact evidence is retained. Email delivery is not implemented.
 
-A finding uses `{ rule, status, evidence }`. Keep rule IDs stable: config exclusions, statistics and filter tags depend on them. The seven current rule IDs are `Assignments`, `RedirectUriSecurity`, `CredentialDates`, `FederatedCredentials`, `EnterpriseAdminOwner`, `Notes`, `RegistrationAdminOwner`.
+A finding uses `{ rule, status, evidence }`. Keep rule IDs stable: config exclusions, statistics and filter tags depend on them. The ten current rule IDs are `Assignments`, `RedirectUriSecurity`, `CredentialDates`, `FederatedCredentials`, `EnterpriseAdminOwner`, `Notes`, `RegistrationAdminOwner`, `ClientSecrets`, `ImplicitFlow` and `OwnersMatch`.
 
 | Finding status | Meaning / application result |
 |---|---|
@@ -74,9 +79,9 @@ Disabled checks and app exclusions are applied after evaluation and remain visib
 |---|---|
 | `report.json` | Full collected report and saved configuration. |
 | `report.html` | Self-contained interactive report, including unmatched registrations and report scope. |
-| `findings.csv` | Findings for retained enterprise applications, including their registration checks. Standalone registration findings are not exported here. |
-| `owners.csv` | Owner account and contact-match evidence for both enterprise applications and all registrations. |
-| `assignments.csv`, `credentials.csv` | Detailed evidence for retained enterprise applications; these exclude standalone registrations. |
+| `findings.csv` (manual export only) | Findings for retained enterprise applications, including their registration checks. Standalone registration findings are not exported here. |
+| `owners.csv` (manual export only) | Owner account and contact-match evidence for both enterprise applications and all registrations. |
+| `assignments.csv`, `credentials.csv` (manual export only) | Detailed evidence for retained enterprise applications; these exclude standalone registrations. |
 | GitHub Pages | Latest full HTML report as `index.html`; evidence downloads remain in the run artifact. Requires Actions publishing; private/internal repositories also require private Pages access. |
 | Actions summary | Website and evidence-artifact links only. Full report statistics, filters and details are on the website. |
 
@@ -85,12 +90,20 @@ The optional legacy Markdown exporter retains its 1 MiB budget and truncation no
 | Template/asset | Purpose |
 |---|---|
 | [templates/report.html](templates/report.html) | Bundled interactive UI and placeholder result payload. Its embedded third-party license notice must be retained. |
-| [templates/check-statistics.js](templates/check-statistics.js) | Per-check dashboard table injected into the UI. |
-| [templates/report-filters.js](templates/report-filters.js) | Tag options derived from status, category, severity and search. Incompatible selected tags are cleared by the injected UI effect. |
+| [templates/check-statistics.js](templates/check-statistics.js) | Per-check dashboard table. Full-cell buttons select a check/result or every result for a check, with an active-filter label and clear action. |
+| [templates/report-filters.js](templates/report-filters.js) | Tag options derived from status, category, severity and search; `EntraFilterApplications` narrows statistics selections without sorting. Incompatible selected tags are cleared by the injected UI effect. |
+| [templates/graph-overview.js](templates/graph-overview.js) | Graph access page, access-distribution chart and severity chart using the existing React runtime, chart and router. |
+| [templates/application-details.js](templates/application-details.js) | SPN/registration detail columns using the existing Markdown renderer, plus a bounded Markdown-page preview. FAIL-row markers derive only from Observation / Policy observation columns, never arbitrary evidence text. |
 | [templates/summary.md](templates/summary.md) | Actions Markdown placeholders. |
 | [templates/brand.css](templates/brand.css), [templates/saab-logo.png](templates/saab-logo.png) | Brand palette and transparent emblem embedded in the generated HTML. |
 
 HTML generation patches specific anchors in the bundled JavaScript and replaces the payload ending in `EndOfJson`. Several anchors require exactly one match and fail explicitly if the template changes. A template upgrade therefore requires reviewing `Export-ReportHtml`, generated JavaScript syntax and actual UI behavior. The component JavaScript uses the bundle's existing React runtime; there is no separate frontend build or Python dependency.
+
+`Get-ReportAppDetails -Split` returns both the object panels and the complete Markdown export; its default return value remains plain Markdown. Assignments, SPN Notes, enterprise owners and granted API permissions belong to the SPN column. Registration owners, authentication settings, requested permissions and federation belong to the registration column. Credential rows follow their recorded source. SAML reply URLs and their check belong to the SPN; web/SPA/native callbacks belong to the registration. OwnersMatch and combined credential checks remain shared. Missing local registrations or SPNs have explicit availability messages. The generated detail card is neutral regardless of application result; its original status/severity badges remain. FAIL highlighting is scoped to detail-table rows, with responsive stacking below 1000px and in print.
+
+`EntraMarkdownPreview` bounds the Markdown-page parser input to 65,536 characters and cuts at a newline where possible. Large reports otherwise send every manifest and detail table into the preview at once. This limit affects only rendered preview, never the source textarea, Copy Markdown or saved evidence. A visible notice identifies limited previews. Severity filtering uses only the selected severity, across every application status; full-width native button rows provide the clickable area even for tiny bars, and preserve keyboard operation. Explicit Clear resets selection; repeated clicks retain it.
+
+`Get-ReportGraphAccess` applies the access and configuration ranking documented in the root README. It never changes a configuration finding. Granted Graph app roles are deduplicated against requested app roles; delegated requests never become verified grants. The Critical role IDs are the stable Global Administrator and Privileged Role Administrator template IDs. All other direct active directory roles are conservatively High, including reader roles. Configuration FAIL/WARN/UNKNOWN findings contribute their documented severity, saved in `configurationRisks`; PASS/SKIPPED/NOT_APPLICABLE do not. The highest matching rule wins. Permission-name operation matching is a review heuristic. Missing grant/role/catalog evidence stays visible; Info does not mean access is verified safe. Severity charts include all application statuses and exclude the report-scope entry. Home covers all applications; Graph covers applications with observed Graph permissions or directory roles. The Graph access-distribution chart counts every application once, with write grants taking precedence, and reports applications with no observed Graph permissions separately. These charts show tenant totals, independent of the application-list filters. Offline rendering recalculates ranking from saved evidence; older snapshots show role evidence as NOT_COLLECTED until a fresh collection is run.
 
 Inventory text is escaped for Markdown/HTML, the embedded JSON uses HTML escaping, and CSV text is protected against spreadsheet formula interpretation. Preserve these safeguards when adding fields.
 

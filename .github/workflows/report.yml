@@ -74,7 +74,7 @@ jobs:
         env:
           REPORT_ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
         run: |
-          "[Download report and JSON/CSV evidence]($env:REPORT_ARTIFACT_URL)" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          "[Download HTML report and JSON data]($env:REPORT_ARTIFACT_URL)" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
       - name: Prepare HTML website
         run: |
           $ErrorActionPreference = 'Stop'

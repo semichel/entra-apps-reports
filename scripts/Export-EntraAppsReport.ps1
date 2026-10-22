@@ -29,7 +29,7 @@ Write-ReportLog ("Reading application configuration from tenant {0}." -f $Tenant
 Write-ReportLog ('Live progress is shown below. Log file: {0}' -f $script:LogPath)
 $applications = [System.Collections.Generic.List[object]]::new()
 Write-ReportLog 'Phase 1/4: loading app registrations.'
-$registrations = @(Get-InventoryWithOwners 'https://graph.microsoft.com/v1.0/applications?$top=999&$select=id,appId,displayName,description,signInAudience,publisherDomain,createdDateTime,web,spa,publicClient,identifierUris,optionalClaims,groupMembershipClaims,api,appRoles,requiredResourceAccess,info,tags,passwordCredentials,keyCredentials')
+$registrations = @(Get-InventoryWithOwners 'https://graph.microsoft.com/v1.0/applications?$top=999')
 Write-ReportLog ('Loaded {0} app registrations.' -f $registrations.Count) Green
 $registrationByApp = @{}
 foreach ($registration in $registrations) {
@@ -38,8 +38,7 @@ foreach ($registration in $registrations) {
 Write-ReportLog 'Phase 2/4: loading enterprise apps, then owners, assignments and credential dates for each app.'
 $principals = @(Get-InventoryWithOwners 'https://graph.microsoft.com/v1.0/servicePrincipals?$filter=servicePrincipalType%20eq%20%27Application%27&$select=id,appId,displayName,appOwnerOrganizationId,accountEnabled,appRoleAssignmentRequired,preferredSingleSignOnMode,replyUrls,servicePrincipalNames,samlSingleSignOnSettings,loginUrl,logoutUrl,tokenEncryptionKeyId,preferredTokenSigningKeyThumbprint,passwordCredentials,keyCredentials')
 $loadedPrincipalCount = $principals.Count
-$principals = @($principals | Where-Object { -not (Test-MicrosoftOwnedPrincipal $_) })
-Write-ReportLog ('Loaded {0} enterprise apps; excluded {1} Microsoft-owned apps. Processing {2} organization/third-party apps.' -f $loadedPrincipalCount, ($loadedPrincipalCount - $principals.Count), $principals.Count) Green
+Write-ReportLog ('Loaded {0} enterprise apps, including Microsoft-owned tenant applications.' -f $loadedPrincipalCount) Green
 $index = 0
 foreach ($principal in $principals) {
     $index++; Write-CollectionProgress 'Enterprise app inventory' $index $principals.Count (Get-Str $principal 'displayName')
@@ -51,12 +50,12 @@ $report = [ordered]@{
     tenantDisplayName = Get-Str $deployment 'tenantDisplayName'
     deploymentEnvironment = 'production'; mode = 'LIVE'; applications = $applications.ToArray()
     ruleConfiguration = Get-Val $deployment 'ruleConfiguration'
-    inventoryScope = [ordered]@{ microsoftOwnedAppsExcluded = $true; excludedMicrosoftAppCount = ($loadedPrincipalCount - $principals.Count); retainedApplicationCount = $principals.Count }
+    inventoryScope = [ordered]@{ microsoftOwnedAppsExcluded = $false; excludedMicrosoftAppCount = 0; retainedApplicationCount = $principals.Count }
 }
 . (Join-Path $PSScriptRoot 'Report.Evidence.ps1')
 Write-ReportLog 'Phase 3/4: collecting permissions, federation and owner contact matches.'
 Add-ExtendedEvidence $report -Registrations $registrations
-Write-ReportLog 'Phase 4/4: writing JSON, rendering HTML and exporting CSV files.'
+Write-ReportLog 'Phase 4/4: writing JSON data and rendering HTML.'
 Export-AppReport $report $OutputDirectory
 Write-ReportLog ("Report written to {0}; log: {1}" -f [IO.Path]::GetFullPath($OutputDirectory), $script:LogPath) Green
 Write-ReportLog ('Total collection and rendering time: {0:hh\:mm\:ss}.' -f $collectionTimer.Elapsed) Green

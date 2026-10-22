@@ -5,6 +5,8 @@
     "minimumEnterpriseAdminOwners": 1,
     "minimumRegistrationAdminOwners": 1,
     "requireNotes": true,
+    "requireMatchingOwners": true,
+    "checkImplicitFlow": true,
     "requireAssignment": true,
     "requireRedirectUris": true,
     "allowLocalhostHttp": true,

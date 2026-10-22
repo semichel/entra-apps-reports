@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 #= Merge defaults and reject invalid policy settings before collection
 function Get-ReportRuleConfiguration {
     param($Config)
-    $defaults = [ordered]@{ ownerUpnPrefix = 'azadmu'; minimumAdminOwners = 1; requireNotes = $true; requireAssignment = $true; requireRedirectUris = $true; allowLocalhostHttp = $true; maxSecretLifetimeDays = 90; maxCertificateLifetimeDays = 365; credentialWarningDays = 30 }
+    $defaults = [ordered]@{ ownerUpnPrefix = 'azadmu'; minimumAdminOwners = 1; requireNotes = $true; requireAssignment = $true; requireRedirectUris = $true; allowLocalhostHttp = $true; requireMatchingOwners = $true; checkImplicitFlow = $true; maxSecretLifetimeDays = 90; maxCertificateLifetimeDays = 365; credentialWarningDays = 30 }
     $rules = Get-Val $Config 'rules'
     if ($null -eq $rules) { $rules = @{} }
     if ($null -ne $rules -and $rules -isnot [Collections.IDictionary]) { throw 'rules must be a JSON object.' }
@@ -19,7 +19,7 @@ function Get-ReportRuleConfiguration {
     foreach ($key in @($rules.Keys)) {
         if ($key -notin @($defaults.Keys)) { throw "Unknown rule setting: $key." }; $defaults[$key] = Get-Val $rules $key
     }
-    foreach ($key in @('requireNotes','requireAssignment','requireRedirectUris','allowLocalhostHttp')) {
+    foreach ($key in @('requireNotes','requireAssignment','requireRedirectUris','allowLocalhostHttp','requireMatchingOwners','checkImplicitFlow')) {
         if ($defaults[$key] -isnot [bool]) { throw "$key must be true or false." }
     }
     foreach ($key in @('minimumAdminOwners','minimumEnterpriseAdminOwners','minimumRegistrationAdminOwners','maxSecretLifetimeDays','maxCertificateLifetimeDays','credentialWarningDays')) {
@@ -28,7 +28,7 @@ function Get-ReportRuleConfiguration {
     if (-not $rules.Contains('minimumEnterpriseAdminOwners')) { $defaults['minimumEnterpriseAdminOwners'] = $defaults['minimumAdminOwners'] }
     if (-not $rules.Contains('minimumRegistrationAdminOwners')) { $defaults['minimumRegistrationAdminOwners'] = $defaults['minimumAdminOwners'] }
     if ($defaults.ownerUpnPrefix -isnot [string] -or [string]::IsNullOrWhiteSpace($defaults.ownerUpnPrefix) -or $defaults.ownerUpnPrefix -match '[\s*?\[\]@]') { throw 'ownerUpnPrefix must be a nonempty literal UPN prefix without spaces, @ or wildcards.' }
-    $names = @('Assignments','RedirectUriSecurity','CredentialDates','FederatedCredentials','EnterpriseAdminOwner','RegistrationAdminOwner','Notes')
+    $names = @('Assignments','RedirectUriSecurity','CredentialDates','FederatedCredentials','ClientSecrets','ImplicitFlow','OwnersMatch','EnterpriseAdminOwner','RegistrationAdminOwner','Notes')
     $disabled = @((Get-Val $Config 'disabledChecks') | Where-Object { $null -ne $_ -and $_ -notin @('RegistrationDescription','GroupAssignmentsPreferred') } | ForEach-Object { if ($_ -eq 'EnterpriseDescription') { 'Notes' } elseif ($_ -eq 'AssignmentRequired') { 'Assignments' } else { $_ } })
     foreach ($name in $disabled) {
         if ($name -notin $names) { throw "Unknown disabled check: $name." }
@@ -71,21 +71,32 @@ function Get-ConfiguredCoreFindings {
     $credentials | ForEach-Object { Update-ReportCredentialPolicy $_ $Rules }
     $statuses = @($credentials | ForEach-Object { Get-Str $_ 'status' })
     $status = if ($statuses -contains 'FAIL') { 'FAIL' } elseif ($statuses -contains 'UNKNOWN') { 'UNKNOWN' } elseif ($statuses -contains 'WARN') { 'WARN' } elseif ($credentials.Count) { 'PASS' } else { 'NOT_APPLICABLE' }
-    $evidence = if ($credentials.Count) { 'Maximum lifetime: secrets {0} days; certificates {1} days. Warning at {2} days remaining. Expired or invalid date ranges fail.' -f $Rules.maxSecretLifetimeDays, $Rules.maxCertificateLifetimeDays, $Rules.credentialWarningDays } else { 'No certificate or client-secret metadata exists in the collected application objects.' }
+    $evidence = if ($credentials.Count) { 'Maximum lifetime: secrets {0} days; certificates {1} days. Warning at {2} days remaining. Secret date issues warn; expired or invalid certificate date ranges fail.' -f $Rules.maxSecretLifetimeDays, $Rules.maxCertificateLifetimeDays, $Rules.credentialWarningDays } else { 'No certificate or client-secret metadata exists in the collected application objects.' }
     New-Finding 'CredentialDates' $status $evidence
+    $secrets = @($credentials | Where-Object { (Get-Str $_ 'kind') -eq 'passwordCredentials' })
+    New-Finding 'ClientSecrets' $(if ($secrets.Count) { 'WARN' } else { 'NOT_APPLICABLE' }) ('Client secrets recorded: {0}. Prefer workload federation where supported. Secret presence and date issues are warnings; certificate date failures remain failures.' -f $secrets.Count)
     $registration = Get-Val $App 'registration'
     $federation = Get-Val $registration 'federatedIdentityCredentials'
     $trusts = @((Get-Val $federation 'items') | Where-Object { $null -ne $_ })
     $status = if ($null -eq $registration -and -not (Get-Val $App 'registrationAvailable')) { 'NOT_APPLICABLE' } elseif ((Get-Str $federation 'status') -ne 'AVAILABLE') { 'UNKNOWN' } elseif ($trusts.Count) { 'PASS' } else { 'NOT_APPLICABLE' }
     $evidence = if ($status -eq 'PASS') { '{0} federated identity credential(s) configured. Workload identity federation supports authentication without stored client secrets. This confirms configuration presence, not runtime use or trust correctness. Existing certificates and secrets are checked separately by CredentialDates.' -f $trusts.Count } elseif ($status -eq 'UNKNOWN') { 'Federated credential evidence is unavailable; configuration presence cannot be verified.' } else { 'No federated identity credentials are configured in the available local registration evidence, or no local registration exists. Federation is optional.' }
     New-Finding 'FederatedCredentials' $status $evidence
+    if ($null -ne $registration) {
+        $implicit = Get-Val (Get-Val $registration 'web') 'implicitGrantSettings'
+        $enabled = (Get-Val $implicit 'enableAccessTokenIssuance') -eq $true -or (Get-Val $implicit 'enableIdTokenIssuance') -eq $true
+        $complete = (Get-Val $implicit 'enableAccessTokenIssuance') -is [bool] -and (Get-Val $implicit 'enableIdTokenIssuance') -is [bool]
+        $status = if (-not $Rules.checkImplicitFlow) { 'SKIPPED' } elseif ($enabled) { 'WARN' } elseif (-not $complete) { 'UNKNOWN' } else { 'PASS' }
+        New-Finding 'ImplicitFlow' $status ('Implicit access-token issuance: {0}; ID-token issuance: {1}. Review enabled implicit issuance; SPA/native platforms should use supported authorization-code and PKCE flows. This is a configuration check, not an authentication test.' -f (Get-Val $implicit 'enableAccessTokenIssuance'), (Get-Val $implicit 'enableIdTokenIssuance'))
+    }
+    else { New-Finding 'ImplicitFlow' 'NOT_APPLICABLE' 'No local app registration; implicit flow settings are outside this tenant.' }
     if (-not (Get-Str $App 'servicePrincipalId')) { return }
     $assignment = Get-Val $App 'assignmentRequired'
     $assignments = @((Get-Val $App 'assignments') | Where-Object { $null -ne $_ })
     $status = if (-not $Rules.requireAssignment) { 'SKIPPED' } elseif ($null -eq $assignment) { 'UNKNOWN' } elseif ($assignment -eq $true -and $assignments.Count -gt 0) { 'PASS' } else { 'FAIL' }
     New-Finding 'Assignments' $status ('Assignment required: {0}; assignments: {1}; rule enforced: {2}. Requires assignment restriction enabled and at least one assignment. Groups, users and service principals are equally accepted; membership and suitability are not evaluated.' -f $assignment, $assignments.Count, $Rules.requireAssignment)
     $urls = @((Get-Val $App 'redirectUris') | Where-Object { $null -ne $_ })
-    $invalid = @($urls | Where-Object { $uri = $null; -not [uri]::TryCreate([string]$_, [UriKind]::Absolute, [ref]$uri) -or ($uri.Scheme -ne 'https' -and -not ($Rules.allowLocalhostHttp -and $uri.Scheme -eq 'http' -and $uri.Host -in @('localhost','127.0.0.1','[::1]'))) })
+    $nativeUrls = @((Get-Val (Get-Val $registration 'publicClient') 'redirectUris') | Where-Object { $null -ne $_ })
+    $invalid = @($urls | Where-Object { $uri = $null; -not [uri]::TryCreate([string]$_, [UriKind]::Absolute, [ref]$uri) -or ($uri.Scheme -ne 'https' -and -not ($Rules.allowLocalhostHttp -and $uri.Scheme -eq 'http' -and $uri.Host -in @('localhost','127.0.0.1','[::1]')) -and -not ($_ -in $nativeUrls -and $uri.Scheme -notin @('http','https','javascript','data','file','ftp','about','blob'))) })
     $status = if (-not $Rules.requireRedirectUris) { 'SKIPPED' } elseif (-not $urls.Count) { 'NOT_APPLICABLE' } elseif ($invalid.Count) { 'FAIL' } else { 'PASS' }
     $evidence = 'Redirect URLs: {0}; invalid URLs: {1}; localhost HTTP allowed: {2}; rule enforced: {3}.' -f $urls.Count, ($invalid -join ', '), $Rules.allowLocalhostHttp, $Rules.requireRedirectUris
     if ($Rules.requireRedirectUris -and -not $urls.Count) { $evidence += ' No redirect URLs are configured in the collected evidence; redirect security is not applicable. This does not prevent the application from passing.' }
@@ -104,6 +115,7 @@ function Update-ReportCredentialPolicy {
         $now = [DateTimeOffset]::UtcNow; $days = [Math]::Floor(($end - $now).TotalDays); $lifetime = [Math]::Ceiling(($end - $start).TotalDays)
         $Credential['daysRemaining'] = $days; $Credential['lifetimeDays'] = $lifetime
         $Credential['status'] = if ($end -le $now -or $end -le $start -or $lifetime -gt $limit) { 'FAIL' } elseif ($start -gt $now) { 'WARN' } elseif ($days -le (Get-Val $Rules 'credentialWarningDays')) { 'WARN' } else { 'PASS' }
+        if ($kind -eq 'passwordCredentials' -and $Credential['status'] -eq 'FAIL') { $Credential['status'] = 'WARN' }
     }
 }
 
@@ -128,14 +140,32 @@ function New-NotesFinding {
     return New-Finding 'Notes' $status $evidence
 }
 
+#= Compare complete owner object ID sets on local application and service principal
+function New-OwnerMatchFinding {
+    param($App, [bool]$Required = $true)
+    if (-not $Required) { return New-Finding 'OwnersMatch' 'SKIPPED' 'Owner matching disabled in configuration.' }
+    $registration = Get-Val $App 'registration'
+    if (-not (Get-Str $App 'servicePrincipalId') -or $null -eq $registration) { return New-Finding 'OwnersMatch' 'NOT_APPLICABLE' 'Both a local registration and SPN are required for owner comparison.' }
+    $registrationOwners = Get-Val $registration 'owners'
+    if ((Get-Str $registrationOwners 'status') -ne 'AVAILABLE') { return New-Finding 'OwnersMatch' 'UNKNOWN' 'Registration owner evidence is unavailable.' }
+    $unresolved = @(@(Get-Val $App 'owners') + @(Get-Val $registrationOwners 'items') | Where-Object { $null -ne $_ -and -not (Get-Str $_ 'id') })
+    if ($unresolved.Count) { return New-Finding 'OwnersMatch' 'UNKNOWN' 'One or more owner object IDs are missing; owner sets cannot be compared.' }
+    $left = @((Get-Val $App 'owners') | Where-Object { $null -ne $_ } | ForEach-Object { Get-Str $_ 'id' } | Sort-Object -Unique)
+    $right = @((Get-Val $registrationOwners 'items') | Where-Object { $null -ne $_ } | ForEach-Object { Get-Str $_ 'id' } | Sort-Object -Unique)
+    $missing = @($left | Where-Object { $_ -notin $right }) + @($right | Where-Object { $_ -notin $left })
+    $status = if (-not $left.Count -and -not $right.Count) { 'WARN' } elseif ($missing.Count) { 'FAIL' } else { 'PASS' }
+    return New-Finding 'OwnersMatch' $status ('SPN owners: {0}; registration owners: {1}; nonmatching owner IDs: {2}. Compares all owner object IDs, not only admin accounts.' -f $left.Count, $right.Count, ($missing -join ', '))
+}
+
 #= Replace obsolete checks and evaluate each object separately
 function Update-AppGovernance {
     param([System.Collections.IDictionary]$App, $Configuration = (Get-ReportRuleConfiguration @{}))
-    $rules = @('Assignments','AssignmentRequired','RedirectUriSecurity','CredentialDates','FederatedCredentials','GroupAssignmentsPreferred','TwoHumanOwners','ProtocolConfirmation','AuthenticationAndClaims','SamlVerificationAndEncryption','OperationsAndDocumentation','EnterpriseAdminOwner','RegistrationAdminOwner','Notes','EnterpriseDescription','RegistrationDescription')
+    $rules = @('Assignments','AssignmentRequired','RedirectUriSecurity','CredentialDates','FederatedCredentials','ClientSecrets','ImplicitFlow','OwnersMatch','GroupAssignmentsPreferred','TwoHumanOwners','ProtocolConfirmation','AuthenticationAndClaims','SamlVerificationAndEncryption','OperationsAndDocumentation','EnterpriseAdminOwner','RegistrationAdminOwner','Notes','EnterpriseDescription','RegistrationDescription')
     $findings = [Collections.Generic.List[object]]::new()
     @((Get-Val $App 'findings')) | Where-Object { $null -ne $_ -and (Get-Str $_ 'rule') -notin $rules } | ForEach-Object { $findings.Add($_) }
     $policy = $Configuration.rules
     @(Get-ConfiguredCoreFindings $App $policy) | ForEach-Object { $findings.Add($_) }
+    $findings.Add((New-OwnerMatchFinding $App $policy.requireMatchingOwners))
     if (Get-Str $App 'servicePrincipalId') {
         $availability = Get-Str $App 'ownerEvidenceStatus'; if (-not $availability) { $availability = 'AVAILABLE' }
         $findings.Add((New-AdminOwnerFinding 'EnterpriseAdminOwner' 'Enterprise application / SPN' (Get-Val $App 'owners') $availability $policy.ownerUpnPrefix $policy.minimumEnterpriseAdminOwners))

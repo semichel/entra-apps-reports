@@ -67,9 +67,30 @@ function Add-ExtendedEvidence {
         Add-AppEvidence $app $principalIndex $registrationIndex
     }
     Write-Progress -Id 1 -Activity 'Application permissions and evidence' -Completed
+    Add-DirectoryRoleEvidence $Report
     Add-OwnerContactEvidence $Report
     $Report['schemaVersion'] = '2.0'
     $Report['evidenceCollectedAtUtc'] = [DateTimeOffset]::UtcNow.ToString('o')
+}
+
+#= Read active directory role assignments once and retain only application principals
+function Add-DirectoryRoleEvidence {
+    param([System.Collections.IDictionary]$Report)
+    Write-ReportLog 'Reading active Entra directory roles for application principals (no sign-in logs).'
+    $evidence = Get-OptionalEvidence 'https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignments?$expand=roleDefinition'
+    $byPrincipal = @{}
+    foreach ($assignment in @((Get-Val $evidence 'items'))) {
+        $id = Get-Str $assignment 'principalId'
+        if (-not $id) { continue }
+        if (-not $byPrincipal.ContainsKey($id)) { $byPrincipal[$id] = [Collections.Generic.List[object]]::new() }
+        $byPrincipal[$id].Add($assignment)
+    }
+    foreach ($app in @((Get-Val $Report 'applications'))) {
+        $items = @((Get-Val $byPrincipal (Get-Str $app 'servicePrincipalId')) | Where-Object { $null -ne $_ })
+        $app['directoryRoles'] = @{ status = Get-Str $evidence 'status'; reason = Get-Str $evidence 'reason'; items = $items }
+    }
+    $Report['directoryRoleCoverage'] = @{ status = Get-Str $evidence 'status'; reason = Get-Str $evidence 'reason'; scope = 'Direct active Entra directory role assignments to service principals; excludes inherited group roles, PIM eligibility and Azure RBAC.' }
+    if ((Get-Str $evidence 'status') -eq 'UNAVAILABLE') { Write-ReportLog 'Directory role evidence unavailable. RoleManagement.Read.Directory is required; report collection continues.' Yellow }
 }
 
 #= Match owner accounts to regular accounts using employee IDs without guessing recipients
@@ -107,6 +128,14 @@ function Get-RegistrationEvidence {
     if ($null -eq $result['owners']) { $result['owners'] = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/applications/{0}/owners?`$select=id,displayName,userPrincipalName" -f $id) }
     $result['credentials'] = @(Get-CredentialSummary $Registration 'AppRegistration')
     $result['federatedIdentityCredentials'] = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/applications/{0}/federatedIdentityCredentials" -f $id)
+    $manifest = [ordered]@{}
+    foreach ($key in $Registration.Keys) {
+        if ($key -notin @('owners','passwordCredentials','keyCredentials') -and -not $key.StartsWith('@odata.') -and -not $key.StartsWith('owners@')) { $manifest[$key] = Get-Val $Registration $key }
+    }
+    $manifest['passwordCredentials'] = @(Get-Val $Registration 'passwordCredentials' | ForEach-Object { @{ keyId = Get-Str $_ 'keyId'; displayName = Get-Str $_ 'displayName'; startDateTime = Get-Str $_ 'startDateTime'; endDateTime = Get-Str $_ 'endDateTime' } })
+    $manifest['keyCredentials'] = @(Get-Val $Registration 'keyCredentials' | ForEach-Object { @{ keyId = Get-Str $_ 'keyId'; displayName = Get-Str $_ 'displayName'; startDateTime = Get-Str $_ 'startDateTime'; endDateTime = Get-Str $_ 'endDateTime'; type = Get-Str $_ 'type'; usage = Get-Str $_ 'usage' } })
+    $result['manifest'] = $manifest
+    $result['isFallbackPublicClient'] = Get-Val $Registration 'isFallbackPublicClient'
     return $result
 }
 
@@ -120,6 +149,7 @@ function Add-AppEvidence {
         $App[$key] = Get-Val $principal $key
     }
     $App['registration'] = Get-Val $RegistrationIndex $appId
+    $App['microsoftOwned'] = Test-MicrosoftOwnedPrincipal $principal
     $App['applicationPermissionGrants'] = Get-ApplicationPermissionEvidence $id $PrincipalIndex
     $App['scopeNote'] = 'Catalog observation; apply the supplied SSO requirements only after confirming this is an in-scope production SSO application. Platform/resource apps may legitimately differ.'
 }
