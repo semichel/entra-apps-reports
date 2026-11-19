@@ -95,7 +95,7 @@ The optional legacy Markdown exporter retains its 1 MiB budget and truncation no
 | [templates/report-filters.js](templates/report-filters.js) | Tag options derived from status, category, severity and search; `EntraFilterApplications` narrows statistics selections without sorting. Incompatible selected tags are cleared by the injected UI effect. |
 | [templates/graph-overview.js](templates/graph-overview.js) | Graph access page, access-distribution chart and severity chart using the existing React runtime, chart and router. |
 | [templates/application-details.js](templates/application-details.js) | SPN/registration detail columns using the existing Markdown renderer, plus a bounded Markdown-page preview. FAIL-row markers derive only from Observation / Policy observation columns, never arbitrary evidence text. |
-| [templates/excel-export.js](templates/excel-export.js) | FAIL-only Excel table and tab-separated clipboard export from structured `ExcelRows`. Preserves missing contacts and neutralizes formula prefixes. |
+| [templates/excel-export.js](templates/excel-export.js) | Groups structured `ExcelRows` by application and owner/source for the Excel table and clipboard. Each check has a stable `Fail: <check>` column with FAIL or blank, derived from check statistics plus observed failures. Retains labeled evidence, missing contacts and formula-prefix protection. JSON check/owner records remain unchanged. |
 | [templates/summary.md](templates/summary.md) | Actions Markdown placeholders. |
 | [templates/brand.css](templates/brand.css), [templates/saab-logo.png](templates/saab-logo.png) | Brand palette and transparent emblem embedded in the generated HTML. |
 
