@@ -268,9 +268,10 @@ function Get-ReportAppDetails {
     return $content
 }
 
-#= One failed check per owner row, retaining missing contacts for follow-up
+#= Owner rows for failed checks or the complete application export
 function Get-ReportExcelRows {
-    param($App, $FailedChecks)
+    param($App, $FailedChecks, [switch]$IncludeAll)
+    if ($IncludeAll) { $FailedChecks = @(@{ AppliesTo = 'Both / combined' }) }
     $registration = Get-Val $App 'registration'
     $availability = Get-Str $App 'ownerEvidenceStatus'; if (-not $availability) { $availability = 'AVAILABLE' }
     $sources = @(
@@ -286,9 +287,9 @@ function Get-ReportExcelRows {
                 $match = Get-Str $owner 'contactMatchStatus'
                 if (-not $match) { $match = if ($null -ne $owner) { 'NOT_COLLECTED' } elseif ($source.availability -eq 'AVAILABLE') { 'NO_OWNER' } else { 'UNAVAILABLE' } }
                 [ordered]@{
-                    Application = Get-Str $App 'displayName'; AppId = Get-Str $App 'appId'
+                    Application = Get-Str $App 'displayName'; Notes = Get-Str $App 'notes'; AppId = Get-Str $App 'appId'
                     ServicePrincipalId = Get-Str $App 'servicePrincipalId'; RegistrationId = Get-Str $registration 'id'
-                    Check = Get-Str $check 'Check'; Status = 'FAIL'; AppliesTo = $scope; Evidence = Get-Str $check 'Evidence'
+                    Check = Get-Str $check 'Check'; Status = $(if ($IncludeAll) { Get-Str $App 'status' } else { 'FAIL' }); AppliesTo = $scope; Evidence = Get-Str $check 'Evidence'
                     OwnerSource = $source.name; OwnerId = Get-Str $owner 'id'; OwnerName = Get-Str $owner 'displayName'
                     OwnerAccount = Get-Str $owner 'userPrincipalName'; UserEmail = Get-Str $owner 'userEmail'; ContactMatchStatus = $match
                 }
@@ -381,6 +382,7 @@ function Get-ReportResults {
         $entry['RegistrationId'] = Get-Str (Get-Val $app 'registration') 'id'
         $entry['ApplicationPanels'] = Get-Val $details 'panels'
         $entry['ExcelRows'] = @(Get-ReportExcelRows $app (Get-Val $details 'failedChecks'))
+        $entry['ExcelAppRows'] = @(Get-ReportExcelRows $app -IncludeAll)
         $tests.Add($entry)
     }
     $rows = [Collections.Generic.List[object]]::new()

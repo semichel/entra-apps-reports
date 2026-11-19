@@ -1,18 +1,21 @@
-const EntraExcelColumns = ['Application', 'AppId', 'ServicePrincipalId', 'RegistrationId', 'OwnerSource', 'OwnerId', 'OwnerName', 'OwnerAccount', 'UserEmail', 'ContactMatchStatus'];
+const EntraExcelColumns = ['Application', 'Notes', 'AppId', 'ServicePrincipalId', 'RegistrationId', 'OwnerSource', 'OwnerId', 'OwnerName', 'OwnerAccount', 'UserEmail', 'ContactMatchStatus'];
 
 function EntraExcelData(tests, statistics = []) {
     const failures = tests.flatMap(test => test.ExcelRows || []).filter(row => row.Status === 'FAIL');
+    const applications = tests.flatMap(test => test.ExcelAppRows || []);
     const checks = [...new Set([...statistics.map(item => item.Check), ...failures.map(row => row.Check)])].filter(Boolean).sort();
     const columns = [...EntraExcelColumns, ...checks.map(check => 'Fail: ' + check), 'Evidence'];
     const groups = new Map();
-    for (const failure of failures) {
-        const key = JSON.stringify(EntraExcelColumns.map(column => failure[column] ?? ''));
+    for (const item of [...applications, ...failures]) {
+        const key = JSON.stringify(EntraExcelColumns.map(column => item[column] ?? ''));
         if (!groups.has(key)) {
-            groups.set(key, { ...Object.fromEntries(EntraExcelColumns.map(column => [column, failure[column]])), Evidence: '' });
+            groups.set(key, { ...Object.fromEntries(EntraExcelColumns.map(column => [column, item[column]])), Evidence: '' });
         }
-        const row = groups.get(key);
-        row['Fail: ' + failure.Check] = 'FAIL';
-        row.Evidence += (row.Evidence ? '\n' : '') + failure.Check + ' (' + failure.AppliesTo + '): ' + (failure.Evidence ?? '');
+        if (item.Check && item.Status === 'FAIL') {
+            const row = groups.get(key);
+            row['Fail: ' + item.Check] = 'FAIL';
+            row.Evidence += (row.Evidence ? '\n' : '') + item.Check + ' (' + item.AppliesTo + '): ' + (item.Evidence ?? '');
+        }
     }
     return { columns, rows: [...groups.values()] };
 }
@@ -44,8 +47,8 @@ function EntraExcelExport() {
             h('h1', { className: 'text-2xl font-semibold text-gray-900 dark:text-white', children: 'Excel' }),
             h(Q9, { variant: 'primary', onClick: copy, disabled: !rows.length, children: 'Copy to Excel' })
         ] }),
-        h('p', { className: 'mb-4 text-sm', children: 'One row per application and owner, keeping owner sources separate. Each check has its own Fail column containing FAIL or blank for that owner source. Paste into Excel and enable Data → Filter to filter or sort by individual failures. Evidence lists each failure and its scope. For email automation, use a nonempty UserEmail with ContactMatchStatus MATCHED. Rows with missing contacts remain visible.' }),
-        h('p', { role: 'status', className: 'mb-4 text-sm', children: message || `${rows.length} application / owner rows with failed checks.` }),
+        h('p', { className: 'mb-4 text-sm', children: 'All applications are included, with enterprise application Notes in a separate column. One row per application and owner, keeping owner sources separate. Each check has its own Fail column containing FAIL or blank for that owner source. Paste into Excel and enable Data → Filter to filter or sort by notes and individual failures. Evidence lists each failure and its scope. For email automation, select the required failures and use a nonempty UserEmail with ContactMatchStatus MATCHED. Rows with missing notes or contacts remain visible.' }),
+        h('p', { role: 'status', className: 'mb-4 text-sm', children: message || `${rows.length} application / owner rows.` }),
         rows.length ? h('div', { className: 'overflow-x-auto rounded-md border border-gray-200 dark:border-gray-700', children:
             h('table', { className: 'min-w-full border-collapse text-left text-sm text-gray-600 dark:text-gray-300', children: [
                 h('thead', { className: 'bg-gray-50 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300', children:
@@ -55,6 +58,6 @@ function EntraExcelExport() {
                     columns.map(column => h('td', { className: 'min-w-40 max-w-md whitespace-normal break-words p-2', children: row[column] ?? '' }, column))
                 }, index)) })
             ] })
-        }) : h('p', { children: 'No failed checks to export.' })
+        }) : h('p', { children: 'No applications to export.' })
     ] });
 }

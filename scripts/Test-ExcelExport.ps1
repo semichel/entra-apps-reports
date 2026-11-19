@@ -1,7 +1,7 @@
 #requires -Version 7.0
 <#
 .SYNOPSIS
-Checks failed-check export rows and clipboard formatting offline with synthetic data.
+Checks application notes, failed-check rows and clipboard formatting offline with synthetic data.
 #>
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 
 $owner = @{ id = 'owner-1'; displayName = 'Owner'; userPrincipalName = 'azadmu.owner@example.test'; userEmail = 'owner@example.test'; contactMatchStatus = 'MATCHED' }
 $registration = @{ id = 'registration-1'; owners = @{ status = 'AVAILABLE'; items = @($owner, @{ id = 'owner-2'; userPrincipalName = 'azadmu.missing@example.test'; contactMatchStatus = 'AMBIGUOUS' }) } }
-$app = @{ displayName = '=Example'; appId = 'client-1'; servicePrincipalId = 'spn-1'; owners = @($owner); ownerEvidenceStatus = 'AVAILABLE'; registration = $registration }
+$app = @{ displayName = '=Example'; notes = "First line`nSecond`tline – äö"; status = 'FAIL'; appId = 'client-1'; servicePrincipalId = 'spn-1'; owners = @($owner); ownerEvidenceStatus = 'AVAILABLE'; registration = $registration }
 $checks = @(
     @{ Check = 'Notes'; AppliesTo = 'Enterprise application / SPN'; Evidence = "Missing notes`nwith a tab`tand text" }
     @{ Check = 'RegistrationAdminOwner'; AppliesTo = 'App registration'; Evidence = 'Registration finding' }
@@ -25,6 +25,12 @@ if ($rows[0].OwnerAccount -ne $owner.userPrincipalName -or $rows[0].UserEmail -n
 if ($null -ne $rows[2].UserEmail -or $rows[2].ContactMatchStatus -ne 'AMBIGUOUS') { throw 'Ambiguous contacts must not gain a guessed email.' }
 if ($rows[0].AppId -ne 'client-1' -or $rows[0].ServicePrincipalId -ne 'spn-1' -or $rows[0].RegistrationId -ne 'registration-1') { throw 'Object IDs must remain separate.' }
 if (@(Get-ReportExcelRows $app @()).Count) { throw 'No failures must produce no export rows.' }
+$allRows = @(Get-ReportExcelRows $app -IncludeAll)
+if ($allRows.Count -ne 3 -or $allRows[0].Notes -cne $app.notes -or $rows[0].Notes -cne $app.notes) { throw 'Complete notes and all owner sources must be exported.' }
+if (@($allRows | Where-Object { $null -ne $_.Check }).Count) { throw 'Application rows must not invent failed checks.' }
+$passedApp = @{ displayName = 'Passed app'; notes = 'Notes for an app without failures'; status = 'PASS'; appId = 'passed-client'; servicePrincipalId = 'passed-spn'; owners = @($owner) }
+$passedRows = @(Get-ReportExcelRows $passedApp -IncludeAll)
+if ($passedRows.Count -ne 1 -or $passedRows[0].Notes -ne $passedApp.notes -or $passedRows[0].Status -ne 'PASS') { throw 'Apps without failures must retain notes and owner contacts.' }
 $app.findings = @(
     @{ rule = 'Notes'; status = 'FAIL'; evidence = 'Missing notes' }
     @{ rule = 'ImplicitFlow'; status = 'WARN'; evidence = 'Warning only' }
@@ -47,12 +53,16 @@ if ((@(Get-ReportExcelRows $app @($checks[0])))[0].ContactMatchStatus -ne 'NO_OW
 $app.ownerEvidenceStatus = 'UNAVAILABLE'
 if ((@(Get-ReportExcelRows $app @($checks[0])))[0].ContactMatchStatus -ne 'UNAVAILABLE') { throw 'Unavailable owner evidence must remain explicit.' }
 $app.Remove('servicePrincipalId')
+$app.Remove('notes')
+$registration.description = 'Registration description is not enterprise Notes'
 $standalone = @(Get-ReportExcelRows $app @($checks[1]))
 if ($standalone.Count -ne 2 -or $null -ne $standalone[0].ServicePrincipalId) { throw 'Standalone registrations must retain their owner rows.' }
+$standaloneAll = @(Get-ReportExcelRows $app -IncludeAll)
+if ($standaloneAll.Count -ne 2 -or $null -ne $standaloneAll[0].Notes) { throw 'Standalone registrations must not use descriptions as enterprise Notes.' }
 
 $fixturePath = Join-Path ([IO.Path]::GetTempPath()) ('entra-excel-check-' + [guid]::NewGuid() + '.json')
 try {
-    ConvertTo-Json -InputObject $rows -Depth 10 | Set-Content -LiteralPath $fixturePath -Encoding utf8
+    ConvertTo-Json -InputObject @{ failures = $rows; applications = $allRows; passed = $passedRows } -Depth 10 | Set-Content -LiteralPath $fixturePath -Encoding utf8
     node (Join-Path $PSScriptRoot 'tests/excel-export.test.cjs') $fixturePath
     if ($LASTEXITCODE -ne 0) { throw 'Excel JavaScript checks failed.' }
 } finally {
