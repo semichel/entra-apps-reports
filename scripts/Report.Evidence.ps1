@@ -3,7 +3,8 @@ $ErrorActionPreference = 'Stop'
 
 #= Optional evidence never masquerades as an empty successful query
 function Get-OptionalEvidence {
-    param([string]$Uri)
+    param([string]$Uri, [System.Collections.IDictionary]$EvidenceCache)
+    if ($null -ne $EvidenceCache -and $EvidenceCache.Contains($Uri)) { return Get-Val $EvidenceCache $Uri }
     try {
         $items = @(Invoke-MgGetAll $Uri)
         return [ordered]@{ status = 'AVAILABLE'; items = $items; reason = $null }
@@ -44,11 +45,13 @@ function Set-OwnerContactEvidence {
 function Add-ExtendedEvidence {
     param(
         [System.Collections.IDictionary]$Report,
-        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Registrations
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Registrations,
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Principals,
+        [System.Collections.IDictionary]$EvidenceCache
     )
     Write-ReportLog 'Collecting app registration and permission evidence.'
     Write-ReportLog ('Reusing {0} registrations from the initial inventory; no second registration download.' -f $Registrations.Count)
-    $principals = @(Invoke-MgGetAll 'https://graph.microsoft.com/v1.0/servicePrincipals?$select=id,appId,displayName,appOwnerOrganizationId,publisherName,servicePrincipalType,appRoles,oauth2PermissionScopes,description,notes,homepage,tags,info')
+    Write-ReportLog ('Reusing {0} service principals from the initial catalog; no second catalog download.' -f $Principals.Count)
     $principalIndex = @{}
     foreach ($principal in $principals) {
         $principalIndex[(Get-Str $principal 'id')] = $principal
@@ -57,14 +60,14 @@ function Add-ExtendedEvidence {
     $index = 0
     foreach ($registration in $registrations) {
         $index++; Write-CollectionProgress 'Registration owners and federation' $index $registrations.Count (Get-Str $registration 'displayName')
-        $registrationIndex[(Get-Str $registration 'appId')] = Get-RegistrationEvidence $registration
+        $registrationIndex[(Get-Str $registration 'appId')] = Get-RegistrationEvidence $registration $EvidenceCache
     }
     Write-Progress -Id 1 -Activity 'Registration owners and federation' -Completed
     $Report['registrations'] = @($registrationIndex.Values)
     $index = 0
     foreach ($app in @(Get-Val $Report 'applications')) {
         $index++; Write-CollectionProgress 'Application permissions and evidence' $index @(Get-Val $Report 'applications').Count (Get-Str $app 'displayName')
-        Add-AppEvidence $app $principalIndex $registrationIndex
+        Add-AppEvidence $app $principalIndex $registrationIndex $EvidenceCache
     }
     Write-Progress -Id 1 -Activity 'Application permissions and evidence' -Completed
     Add-DirectoryRoleEvidence $Report
@@ -118,16 +121,16 @@ function Add-OwnerContactEvidence {
 
 #= Registration evidence excludes credential values
 function Get-RegistrationEvidence {
-    param($Registration)
+    param($Registration, [System.Collections.IDictionary]$EvidenceCache)
     $id = Get-Str $Registration 'id'
     $result = [ordered]@{}
     foreach ($key in @('id','appId','displayName','description','signInAudience','publisherDomain','createdDateTime','web','spa','publicClient','identifierUris','optionalClaims','groupMembershipClaims','api','appRoles','requiredResourceAccess','info','tags')) {
         $result[$key] = Get-Val $Registration $key
     }
     $result['owners'] = Get-ExpandedOwnerEvidence $Registration
-    if ($null -eq $result['owners']) { $result['owners'] = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/applications/{0}/owners?`$select=id,displayName,userPrincipalName" -f $id) }
+    if ($null -eq $result['owners']) { $result['owners'] = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/applications/{0}/owners?`$select=id,displayName,userPrincipalName" -f $id) $EvidenceCache }
     $result['credentials'] = @(Get-CredentialSummary $Registration 'AppRegistration')
-    $result['federatedIdentityCredentials'] = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/applications/{0}/federatedIdentityCredentials" -f $id)
+    $result['federatedIdentityCredentials'] = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/applications/{0}/federatedIdentityCredentials" -f $id) $EvidenceCache
     $manifest = [ordered]@{}
     foreach ($key in $Registration.Keys) {
         if ($key -notin @('owners','passwordCredentials','keyCredentials') -and -not $key.StartsWith('@odata.') -and -not $key.StartsWith('owners@')) { $manifest[$key] = Get-Val $Registration $key }
@@ -141,7 +144,7 @@ function Get-RegistrationEvidence {
 
 #= Enrich an application with permissions evidence
 function Add-AppEvidence {
-    param([System.Collections.IDictionary]$App, $PrincipalIndex, $RegistrationIndex)
+    param([System.Collections.IDictionary]$App, $PrincipalIndex, $RegistrationIndex, [System.Collections.IDictionary]$EvidenceCache)
     $id = Get-Str $App 'servicePrincipalId'
     $appId = Get-Str $App 'appId'
     $principal = Get-Val $PrincipalIndex $id
@@ -150,14 +153,14 @@ function Add-AppEvidence {
     }
     $App['registration'] = Get-Val $RegistrationIndex $appId
     $App['microsoftOwned'] = Test-MicrosoftOwnedPrincipal $principal
-    $App['applicationPermissionGrants'] = Get-ApplicationPermissionEvidence $id $PrincipalIndex
+    $App['applicationPermissionGrants'] = Get-ApplicationPermissionEvidence $id $PrincipalIndex $EvidenceCache
     $App['scopeNote'] = 'Catalog observation; apply the supplied SSO requirements only after confirming this is an in-scope production SSO application. Platform/resource apps may legitimately differ.'
 }
 
 #= Resolve granted application permission names against resource roles
 function Get-ApplicationPermissionEvidence {
-    param([string]$PrincipalId, $PrincipalIndex)
-    $evidence = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/servicePrincipals/{0}/appRoleAssignments?`$select=id,appRoleId,resourceId,resourceDisplayName,principalId" -f $PrincipalId)
+    param([string]$PrincipalId, $PrincipalIndex, [System.Collections.IDictionary]$EvidenceCache)
+    $evidence = Get-OptionalEvidence ("https://graph.microsoft.com/v1.0/servicePrincipals/{0}/appRoleAssignments?`$select=id,appRoleId,resourceId,resourceDisplayName,principalId" -f $PrincipalId) $EvidenceCache
     foreach ($grant in @(Get-Val $evidence 'items')) {
         Set-PermissionName $grant $PrincipalIndex
     }

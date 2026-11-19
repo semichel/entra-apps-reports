@@ -48,6 +48,8 @@ Owners show **Owner account** and **User email** in the HTML website and the JSO
 
 **View → Excel** shows applications with FAIL findings, with one row per application and owner, keeping SPN and registration owner sources separate. Each check has its own named column, such as `Fail: Assignments`, `Fail: CredentialDates` and `Fail: EnterpriseAdminOwner`. Cells contain `FAIL` or are blank when that check has no FAIL for the row's owner source; blank does not mean PASS. **Copy to Excel** copies these columns alongside application/object IDs, owner name/account, user email, contact-match status and evidence labeled by check and scope. Paste into Excel and enable **Data → Filter** to filter or sort each failure column. Combined checks include both owner sources. Missing owners or emails remain visible; no address is guessed. For email automation, use rows where `ContactMatchStatus` is `MATCHED` and `UserEmail` is nonempty. JSON retains the separate check/owner records in `reportView.Tests[].ExcelRows` for existing automation. Copying neutralizes Excel formula prefixes in text; JSON retains the original values.
 
+Collection batches relationship reads in groups of up to 20 GETs and reuses one service-principal catalog for inventory and permission-name lookup. Pagination, owner completeness, optional-evidence errors and all checks remain active. Progress logs show batch/page counts. The cache lasts only for that run; saved delta bookmarks are not enabled. See [collection optimization](docs/delta-collection-research.md) for the tradeoffs and delta research.
+
 ## Configuration
 
 [config/production.json](config/production.json) defines the report rules. `tenantDisplayName` changes the display label; the workflow's tenant ID selects the tenant.

@@ -18,6 +18,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Report.Common.ps1')
 Assert-ReportPrerequisites
+. (Join-Path $PSScriptRoot 'Report.Batch.ps1')
 $script:LogPath = if ($env:IACPORTAL_LOG) { $env:IACPORTAL_LOG } else { Join-Path ([IO.Path]::GetTempPath()) ('entra-apps-report-{0}.log' -f [guid]::NewGuid()) }
 $deployment = Read-ReportDeployment $ConfigPath -TenantId $TenantId -ClientId $ClientId
 $TenantId = Get-Str $deployment 'tenantId'
@@ -35,14 +36,16 @@ $registrationByApp = @{}
 foreach ($registration in $registrations) {
     $registrationByApp[(Get-Str $registration 'appId')] = $registration
 }
-Write-ReportLog 'Phase 2/4: loading enterprise apps, then owners, assignments and credential dates for each app.'
-$principals = @(Get-InventoryWithOwners 'https://graph.microsoft.com/v1.0/servicePrincipals?$filter=servicePrincipalType%20eq%20%27Application%27&$select=id,appId,displayName,appOwnerOrganizationId,accountEnabled,appRoleAssignmentRequired,preferredSingleSignOnMode,replyUrls,servicePrincipalNames,samlSingleSignOnSettings,loginUrl,logoutUrl,tokenEncryptionKeyId,preferredTokenSigningKeyThumbprint,passwordCredentials,keyCredentials')
+Write-ReportLog 'Phase 2/4: loading one service-principal catalog and batching complete relationship reads.'
+$principalCatalog = @(Get-InventoryWithOwners 'https://graph.microsoft.com/v1.0/servicePrincipals?$select=id,appId,displayName,appOwnerOrganizationId,accountEnabled,appRoleAssignmentRequired,preferredSingleSignOnMode,replyUrls,servicePrincipalNames,samlSingleSignOnSettings,loginUrl,logoutUrl,tokenEncryptionKeyId,preferredTokenSigningKeyThumbprint,passwordCredentials,keyCredentials,publisherName,servicePrincipalType,appRoles,oauth2PermissionScopes,description,notes,homepage,tags,info')
+$principals = @($principalCatalog | Where-Object { (Get-Str $_ 'servicePrincipalType') -eq 'Application' })
 $loadedPrincipalCount = $principals.Count
 Write-ReportLog ('Loaded {0} enterprise apps, including Microsoft-owned tenant applications.' -f $loadedPrincipalCount) Green
+$relationshipEvidence = Get-ReportRelationshipEvidence $principals $registrations
 $index = 0
 foreach ($principal in $principals) {
     $index++; Write-CollectionProgress 'Enterprise app inventory' $index $principals.Count (Get-Str $principal 'displayName')
-    $applications.Add((Get-LiveAppReport $principal $registrationByApp))
+    $applications.Add((Get-LiveAppReport $principal $registrationByApp $relationshipEvidence))
 }
 Write-Progress -Id 1 -Activity 'Enterprise app inventory' -Completed
 $report = [ordered]@{
@@ -54,7 +57,7 @@ $report = [ordered]@{
 }
 . (Join-Path $PSScriptRoot 'Report.Evidence.ps1')
 Write-ReportLog 'Phase 3/4: collecting permissions, federation and owner contact matches.'
-Add-ExtendedEvidence $report -Registrations $registrations
+Add-ExtendedEvidence $report -Registrations $registrations -Principals $principalCatalog -EvidenceCache $relationshipEvidence
 Write-ReportLog 'Phase 4/4: writing JSON data and rendering HTML.'
 Export-AppReport $report $OutputDirectory
 Write-ReportLog ("Report written to {0}; log: {1}" -f [IO.Path]::GetFullPath($OutputDirectory), $script:LogPath) Green

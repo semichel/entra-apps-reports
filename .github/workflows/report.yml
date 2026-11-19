@@ -39,6 +39,11 @@ jobs:
           $env:GH_HOST = ([uri]$env:GITHUB_SERVER_URL).Host
           $visibility = gh api "repos/$env:GITHUB_REPOSITORY" --jq '.visibility'
           if ($LASTEXITCODE -ne 0 -or $visibility -notin @('public', 'private', 'internal')) { throw 'Could not verify repository visibility.' }
+      - name: Verify collection and Excel exports offline
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./scripts/Test-CollectionBatch.ps1
+          ./scripts/Test-ExcelExport.ps1
       - name: Install modules
         run: |
           $ErrorActionPreference = 'Stop'

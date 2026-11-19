@@ -26,7 +26,7 @@ function Get-Str {
 
 #= Validate required report files before starting Graph collection
 function Assert-ReportPrerequisites {
-    foreach ($relativePath in @('Report.Render.ps1', 'Report.Rules.ps1', 'Report.Evidence.ps1', 'templates/report.html', 'templates/check-statistics.js', 'templates/report-filters.js', 'templates/graph-overview.js', 'templates/application-details.js', 'templates/excel-export.js', 'templates/saab-logo.png', 'templates/brand.css')) {
+    foreach ($relativePath in @('Report.Render.ps1', 'Report.Rules.ps1', 'Report.Evidence.ps1', 'Report.Batch.ps1', 'templates/report.html', 'templates/check-statistics.js', 'templates/report-filters.js', 'templates/graph-overview.js', 'templates/application-details.js', 'templates/excel-export.js', 'templates/saab-logo.png', 'templates/brand.css')) {
         if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $relativePath) -PathType Leaf)) { throw "Missing report file: $relativePath. Copy the complete project before running; no inventory requests have been made." }
     }
 }
@@ -54,15 +54,21 @@ function Write-CollectionProgress {
 
 #= Read Graph with bounded throttling retries
 function Invoke-ReportGet {
-    param([string]$Uri)
+    param([string]$Uri, [object[]]$BatchRequests)
     $parsed = [uri]$Uri
     if ($parsed.Scheme -ne 'https' -or $parsed.Host -ne 'graph.microsoft.com') {
         throw 'Graph URL must use https://graph.microsoft.com.'
     }
+    $request = @{ Method = 'GET'; Uri = $Uri; OutputType = 'Hashtable' }
+    if ($PSBoundParameters.ContainsKey('BatchRequests')) {
+        if ($parsed.AbsoluteUri -ne 'https://graph.microsoft.com/v1.0/$batch') { throw 'Batch reads must use the Graph v1.0 batch endpoint.' }
+        $request['Method'] = 'POST'; $request['ContentType'] = 'application/json'
+        $request['Body'] = ConvertTo-Json -InputObject @{ requests = @($BatchRequests) } -Depth 8 -Compress
+    }
     for ($attempt = 0; $attempt -lt 5; $attempt++) {
         try {
-            Write-Progress -Id 2 -Activity 'Microsoft Graph request' -Status ('GET {0} (attempt {1}/5)' -f $parsed.AbsolutePath, ($attempt + 1))
-            return Invoke-MgGraphRequest -Method GET -Uri $Uri -OutputType Hashtable
+            Write-Progress -Id 2 -Activity 'Microsoft Graph request' -Status ('{0} {1} (attempt {2}/5)' -f $request['Method'], $parsed.AbsolutePath, ($attempt + 1))
+            return Invoke-MgGraphRequest @request
         }
         catch {
             $response = Get-Val $_.Exception 'Response'
@@ -81,7 +87,12 @@ function Invoke-ReportGet {
 
 #= Explicit Graph pagination
 function Invoke-MgGetAll {
-    param([string]$Uri)
+    param([string]$Uri, [System.Collections.IDictionary]$EvidenceCache)
+    if ($null -ne $EvidenceCache -and $EvidenceCache.Contains($Uri)) {
+        $evidence = Get-Val $EvidenceCache $Uri
+        if ((Get-Str $evidence 'status') -ne 'AVAILABLE') { throw (Get-Str $evidence 'reason') }
+        return Get-Val $evidence 'items'
+    }
     $items = [System.Collections.Generic.List[object]]::new()
     $visited = [System.Collections.Generic.HashSet[string]]::new()
     $pageNumber = 0
@@ -222,12 +233,12 @@ function Export-AppReport {
 
 #= Load owners and assignments for one enterprise application
 function Get-LiveAppReport {
-    param($Principal, [System.Collections.IDictionary]$RegistrationByApp)
+    param($Principal, [System.Collections.IDictionary]$RegistrationByApp, [System.Collections.IDictionary]$EvidenceCache)
     $id = Get-Str $Principal 'id'
     $appId = Get-Str $Principal 'appId'
     $ownerEvidence = Get-ExpandedOwnerEvidence $Principal
-    $owners = @(if ($null -ne $ownerEvidence) { Get-Val $ownerEvidence 'items' } else { Invoke-MgGetAll ("https://graph.microsoft.com/v1.0/servicePrincipals/{0}/owners?`$select=id,displayName,userPrincipalName" -f $id) })
-    $assignments = @(Invoke-MgGetAll ("https://graph.microsoft.com/v1.0/servicePrincipals/{0}/appRoleAssignedTo?`$select=id,principalId,principalDisplayName,principalType,appRoleId,resourceId" -f $id))
+    $owners = @(if ($null -ne $ownerEvidence) { Get-Val $ownerEvidence 'items' } else { Invoke-MgGetAll ("https://graph.microsoft.com/v1.0/servicePrincipals/{0}/owners?`$select=id,displayName,userPrincipalName" -f $id) $EvidenceCache })
+    $assignments = @(Invoke-MgGetAll ("https://graph.microsoft.com/v1.0/servicePrincipals/{0}/appRoleAssignedTo?`$select=id,principalId,principalDisplayName,principalType,appRoleId,resourceId" -f $id) $EvidenceCache)
     $registration = Get-Val $RegistrationByApp $appId
     return New-AppReport $Principal $registration $owners $assignments
 }
