@@ -26,7 +26,7 @@ function Get-Str {
 
 #= Validate required report files before starting Graph collection
 function Assert-ReportPrerequisites {
-    foreach ($relativePath in @('Report.Render.ps1', 'Report.Rules.ps1', 'Report.Evidence.ps1', 'templates/report.html', 'templates/check-statistics.js', 'templates/report-filters.js', 'templates/graph-overview.js', 'templates/application-details.js', 'templates/saab-logo.png', 'templates/brand.css')) {
+    foreach ($relativePath in @('Report.Render.ps1', 'Report.Rules.ps1', 'Report.Evidence.ps1', 'templates/report.html', 'templates/check-statistics.js', 'templates/report-filters.js', 'templates/graph-overview.js', 'templates/application-details.js', 'templates/excel-export.js', 'templates/saab-logo.png', 'templates/brand.css')) {
         if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $relativePath) -PathType Leaf)) { throw "Missing report file: $relativePath. Copy the complete project before running; no inventory requests have been made." }
     }
 }

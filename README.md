@@ -46,6 +46,8 @@ Each object panel shows its own **Object ID** and the shared **Application (clie
 
 Owners show **Owner account** and **User email** in the HTML website and the JSON data. The report matches `employeeId` to exactly one regular user account whose UPN does not start with the configured `ownerUpnPrefix`, then uses that account's `mail`. A regular owner can match itself. Missing employee IDs, missing mail, missing matches and ambiguous matches are shown explicitly, with no email selected. Contact matching does not affect the configuration checks and does not send email. The user catalog is read once with only ID, name, UPN, employee ID and mail; only owner and matched-contact evidence is saved.
 
+**View → Excel** shows only FAIL findings, with one row per failed check and owner of the affected object. Combined checks include both owner sources. **Copy to Excel** copies separate columns for application/object IDs, check, status, scope, evidence, owner name/account, user email and contact-match status. Missing owners or emails remain visible; no address is guessed. For email automation, use rows where `ContactMatchStatus` is `MATCHED` and `UserEmail` is nonempty. The same structured rows are saved in `reportView.Tests[].ExcelRows` in JSON. Multiple owners produce multiple rows per check; an owner on both objects has a row for each source on combined checks. Copying neutralizes Excel formula prefixes in text; JSON retains the original values.
+
 ## Configuration
 
 [config/production.json](config/production.json) defines the report rules. `tenantDisplayName` changes the display label; the workflow's tenant ID selects the tenant.

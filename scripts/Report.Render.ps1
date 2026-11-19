@@ -264,8 +264,37 @@ function Get-ReportAppDetails {
     $failures = if ($failedRows.Count) { New-ReportSection ('Failed checks ({0})' -f $failedRows.Count) @('Check','Applies to','Observation','Evidence') $failedRows } else { '' }
     $panels = @{ failures = $failures; servicePrincipal = $spnText.ToString(); registration = $registrationText.ToString(); shared = $sharedText.ToString() }
     $content = $panels.failures + "`n## Enterprise application / SPN`n" + $panels.servicePrincipal + "`n## App registration`n" + $panels.registration + "`n## Combined assessment`n" + $panels.shared
-    if ($Split) { return @{ panels = $panels; markdown = $content } }
+    if ($Split) { return @{ panels = $panels; markdown = $content; failedChecks = @($failedRows | ForEach-Object { @{ Check = $_[0]; AppliesTo = $_[1]; Evidence = $_[3] } }) } }
     return $content
+}
+
+#= One failed check per owner row, retaining missing contacts for follow-up
+function Get-ReportExcelRows {
+    param($App, $FailedChecks)
+    $registration = Get-Val $App 'registration'
+    $availability = Get-Str $App 'ownerEvidenceStatus'; if (-not $availability) { $availability = 'AVAILABLE' }
+    $sources = @(
+        @{ name = 'Enterprise application / SPN'; owners = Get-Val $App 'owners'; availability = $availability; exists = [bool](Get-Str $App 'servicePrincipalId') }
+        @{ name = 'App registration'; owners = Get-Val (Get-Val $registration 'owners') 'items'; availability = Get-Str (Get-Val $registration 'owners') 'status'; exists = $null -ne $registration }
+    )
+    foreach ($check in $FailedChecks) {
+        $scope = Get-Str $check 'AppliesTo'
+        foreach ($source in $sources | Where-Object { $_.exists -and ($scope -eq 'Both / combined' -or $_.name -eq $scope) }) {
+            $owners = @($source.owners | Where-Object { $null -ne $_ })
+            if (-not $owners.Count) { $owners = @($null) }
+            foreach ($owner in $owners) {
+                $match = Get-Str $owner 'contactMatchStatus'
+                if (-not $match) { $match = if ($null -ne $owner) { 'NOT_COLLECTED' } elseif ($source.availability -eq 'AVAILABLE') { 'NO_OWNER' } else { 'UNAVAILABLE' } }
+                [ordered]@{
+                    Application = Get-Str $App 'displayName'; AppId = Get-Str $App 'appId'
+                    ServicePrincipalId = Get-Str $App 'servicePrincipalId'; RegistrationId = Get-Str $registration 'id'
+                    Check = Get-Str $check 'Check'; Status = 'FAIL'; AppliesTo = $scope; Evidence = Get-Str $check 'Evidence'
+                    OwnerSource = $source.name; OwnerId = Get-Str $owner 'id'; OwnerName = Get-Str $owner 'displayName'
+                    OwnerAccount = Get-Str $owner 'userPrincipalName'; UserEmail = Get-Str $owner 'userEmail'; ContactMatchStatus = $match
+                }
+            }
+        }
+    }
 }
 
 #= Native report entry consumed by the bundled interface
@@ -351,6 +380,7 @@ function Get-ReportResults {
         $entry['GraphAccess'] = $access; $entry['AppId'] = Get-Str $app 'appId'; $entry['ServicePrincipalId'] = Get-Str $app 'servicePrincipalId'
         $entry['RegistrationId'] = Get-Str (Get-Val $app 'registration') 'id'
         $entry['ApplicationPanels'] = Get-Val $details 'panels'
+        $entry['ExcelRows'] = @(Get-ReportExcelRows $app (Get-Val $details 'failedChecks'))
         $tests.Add($entry)
     }
     $rows = [Collections.Generic.List[object]]::new()
@@ -411,6 +441,10 @@ function Export-ReportHtml {
     $component += "`n" + [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'templates/report-filters.js'))
     $component += "`n" + [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'templates/graph-overview.js'))
     $component += "`n" + [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'templates/application-details.js'))
+    $component += "`n" + [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'templates/excel-export.js'))
+    $excelRoute = '(0,z.jsx)(Rt,{path:`/view/excel`,element:(0,z.jsx)(VKe,{})})'
+    if ([regex]::Matches($template, [regex]::Escape($excelRoute)).Count -ne 1) { throw 'Report template has no unique Excel export insertion point.' }
+    $template = $template.Replace($excelRoute, $excelRoute.Replace('VKe', 'EntraExcelExport'))
     $evidenceCard = 'className:`break-words `+a(e.Result)'
     $evidenceContent = '(0,C7.jsx)(`div`,{className:`prose max-w-fit dark:prose-invert`,children:(0,C7.jsx)(J5,{remarkPlugins:[S7],children:r()})})'
     foreach ($point in @($evidenceCard, $evidenceContent)) {

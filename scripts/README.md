@@ -47,6 +47,7 @@ The final JSON schema version is `3.0`; version `2.0` input remains readable. A 
 | `reportView.Tests[].GraphAccess` | Normalized Graph permissions, grant/request distinction, directory roles, ranked `configurationRisks`, ranking reasons and evidence gaps. `Severity` ranks access and configuration findings, separate from `Result`. |
 | `reportView.Tests[].ApplicationPanels` | `failures`, `servicePrincipal`, `registration` and `shared` Markdown sections for the detail view. `failures` lists only exact FAIL findings and is displayed first when nonempty. The same sections are retained in `ResultDetail.TestResult` for existing exports. |
 | `reportView.Tests[].AppId`, `RegistrationId`, `ServicePrincipalId` | Client ID, app registration Object ID and enterprise application Object ID. Object IDs are displayed under their own panel headings; never substitute a client ID or SPN ID for a missing registration ID. |
+| `reportView.Tests[].ExcelRows` | FAIL-only rows for email automation: one affected-object owner per check, with separate application/object IDs, check/evidence, owner source/account and matched user email/status. Missing owners remain as `NO_OWNER` or `UNAVAILABLE`; missing contact enrichment is `NOT_COLLECTED`. Standalone registrations are included. |
 
 
 Evidence wrappers use `{ status, items, reason }`, where availability is `AVAILABLE` or `UNAVAILABLE`. Unavailable evidence must not be presented as a successful empty query. Credential records contain metadata, never secret values or certificate bytes.
@@ -94,6 +95,7 @@ The optional legacy Markdown exporter retains its 1 MiB budget and truncation no
 | [templates/report-filters.js](templates/report-filters.js) | Tag options derived from status, category, severity and search; `EntraFilterApplications` narrows statistics selections without sorting. Incompatible selected tags are cleared by the injected UI effect. |
 | [templates/graph-overview.js](templates/graph-overview.js) | Graph access page, access-distribution chart and severity chart using the existing React runtime, chart and router. |
 | [templates/application-details.js](templates/application-details.js) | SPN/registration detail columns using the existing Markdown renderer, plus a bounded Markdown-page preview. FAIL-row markers derive only from Observation / Policy observation columns, never arbitrary evidence text. |
+| [templates/excel-export.js](templates/excel-export.js) | FAIL-only Excel table and tab-separated clipboard export from structured `ExcelRows`. Preserves missing contacts and neutralizes formula prefixes. |
 | [templates/summary.md](templates/summary.md) | Actions Markdown placeholders. |
 | [templates/brand.css](templates/brand.css), [templates/saab-logo.png](templates/saab-logo.png) | Brand palette and transparent emblem embedded in the generated HTML. |
 
@@ -118,6 +120,8 @@ Use `Get-Val`/`Get-Str` for Graph dictionaries. Missing helper values return nul
 Keep StrictMode and terminating errors. Use four-space indentation and `#=` function sections. Validate PowerShell syntax after each changed function. Progress goes to the console and to `IACPORTAL_LOG` when set, otherwise a temporary log file. Generated reports and credentials must remain outside version control.
 
 ## Developer verification
+
+Run `./scripts/Test-ExcelExport.ps1` with PowerShell 7 and Node.js for offline synthetic checks covering owner scope, multiple/missing contacts, standalone registrations, clipboard columns, formula-prefix escaping and clipboard failures. No Graph authentication is required.
 
 Use a saved, access-controlled report to verify rendering without Graph or authentication. Run from the repository root in PowerShell 7:
 
