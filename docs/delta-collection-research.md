@@ -37,4 +37,13 @@ For this pipeline, persist the corresponding object cache and completed bookmark
 
 Implemented verification: `scripts/Test-CollectionBatch.ps1` compares complete collected evidence and governance results between sequential and batched paths, including owner matching, assignment pagination, permission-name resolution and credential sanitization. Its fixture uses 10 sequential HTTP reads versus 2 batches plus 2 ordinary catalog reads. Separate transport cases cover reversed/missing/duplicate responses, retries, failed optional pages and unsafe/repeated next links. This is a synthetic request-count comparison, not a live speed benchmark.
 
-No live tenant calls, timing benchmarks or delta relationship-change experiments were performed. The largest correctness risk is treating an unchanged parent object as proof that its relationships are unchanged.
+## Live batching trial
+
+The [trial workflow](https://github.com/semichel/entra-apps-reports/actions/runs/44550342695) completed collection and Pages deployment successfully on 2026-11-19 using commit `b41ee15`. Compared with the [previous successful workflow](https://github.com/semichel/entra-apps-reports/actions/runs/44527823376):
+
+- The Generate report step decreased from 2 minutes 38 seconds to 1 minute 35 seconds, approximately 40% faster. The collector's own timer decreased from 2:35 to 1:32.
+- The collector completed 689 relationship collections in 35 batch envelopes and reused the initial principal catalog.
+- Both artifacts contain 338 enterprise applications, 13 registrations, 3 enterprise-owner records, 23 assignments and 20 permission grants. Tenant, rule configuration, application/registration evidence and governance results matched after normalizing record ordering and excluding calculated remaining-day fields and diagnostic reason text.
+- Module installation took 4 minutes 26 seconds in the trial, making total workflow time longer despite faster generation. Setup timing is separate from collector performance; no module-installation changes were made.
+
+Persistent delta and delta relationship-change experiments remain unimplemented. The largest delta correctness risk is treating an unchanged parent object as proof that its relationships are unchanged.
