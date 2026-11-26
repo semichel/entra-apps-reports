@@ -61,6 +61,53 @@ App-only runners and daemons may legitimately have no redirect URLs. Application
 ## Rebuilt checks
 
 - `ClientSecrets`: any recorded client secret produces WARN. Secret date problems also remain WARN in CredentialDates; certificate failures remain FAIL. Presence of federation does not suppress secret warnings.
-- `requireMatchingOwners` (default true) enables `OwnersMatch`: compare complete, unique owner object ID sets on the registration and SPN. Different sets FAIL, both empty WARN, unreadable/incomplete owner evidence UNKNOWN, missing local registration NOT_APPLICABLE. This is independent of the admin-owner minimums.
+- `requireMatchingOwners` (default true) enables the informational `OwnersMatch` comparison of complete, unique owner object ID sets. Different sets or two empty sets produce WARN; matching nonempty sets PASS; unavailable/incomplete owner evidence UNKNOWN; missing local registration NOT_APPLICABLE. These results remain in details, statistics and filters but never affect approval or severity. Set to false to mark it SKIPPED. Each object's admin-owner minimum is a separate requirement; ordinary accounts do not count toward that minimum. Different administrators may own each object. The comparison helps identify differing responsibility without treating identical owner lists as a security requirement.
 - `checkImplicitFlow` (default true) enables `ImplicitFlow`: either access-token or ID-token implicit issuance enabled produces WARN. Both explicitly false PASS; incomplete settings UNKNOWN. No local registration is NOT_APPLICABLE. This does not prove PKCE is used at runtime.
 - Microsoft-owned applications are now included and labeled; filter their entries in the dashboard. Existing rules still apply unless disabled/excluded in configuration.
+
+## Report wording and correction steps
+
+`production.json` controls the requirements. The JSON files in [remediation](remediation) control how those results are explained to application owners. Edit the wording files independently of the rules; no PowerShell or JavaScript change is needed.
+
+| File | Explains |
+|---|---|
+| [Assignments.json](remediation/Assignments.json) | Restricting access through assignments and adding approved users, groups or services. |
+| [EnterpriseAdminOwner.json](remediation/EnterpriseAdminOwner.json) | Adding the required administrator owners to the enterprise application / SPN. |
+| [RegistrationAdminOwner.json](remediation/RegistrationAdminOwner.json) | Adding the required administrator owners to the app registration. |
+| [CredentialDates.json](remediation/CredentialDates.json) | Resolving certificate failures, expiry warnings and unreadable dates. |
+| [RedirectUriSecurity.json](remediation/RedirectUriSecurity.json) | Correcting configured redirect addresses; an unused URL is not required. |
+| [Notes.json](remediation/Notes.json) | Filling in enterprise application Notes. |
+| [ClientSecrets.json](remediation/ClientSecrets.json) | Reviewing stored secrets; secret presence remains a warning. |
+| [ImplicitFlow.json](remediation/ImplicitFlow.json) | Reviewing implicit token issuance without breaking an application that still depends on it. |
+| [FederatedCredentials.json](remediation/FederatedCredentials.json) | Recovering missing federation evidence; lack of federation is not itself a failure. |
+| [OwnersMatch.json](remediation/OwnersMatch.json) | Explaining differing owner lists as information only, without affecting approval. |
+
+Each file has a `title` and the applicable `FAIL`, `WARN` or `UNKNOWN` sections. Each result section contains:
+
+- `summary`: a short explanation of the issue in plain language.
+- `actions`: an array of steps in the order the recipient should perform them. One string is one step.
+
+For example, the FAIL section of `EnterpriseAdminOwner.json` can contain:
+
+```json
+"FAIL": {
+  "summary": "Add a responsible administrator owner to this enterprise application.",
+  "actions": [
+    "Open Enterprise applications and locate this application using its Object ID.",
+    "Open Owners and add an administrator account whose UPN starts with {{ownerUpnPrefix}}.",
+    "Keep at least {{minimumEnterpriseAdminOwners}} qualifying owner(s), then run the report again."
+  ]
+}
+```
+
+This is a section to edit inside the existing file, not a replacement for the entire file. Keep the other required sections and the filename. Unknown fields, missing files/sections, empty summaries, invalid action arrays and unknown placeholders are rejected before collection. Use normal JSON syntax, without comments or trailing commas. Text is displayed as text rather than executed as code or raw HTML.
+
+Use `{{ruleSetting}}` to insert a value from the report's active rules, such as `{{ownerUpnPrefix}}`, `{{minimumRegistrationAdminOwners}}`, `{{maxCertificateLifetimeDays}}` or `{{credentialWarningDays}}`. These values follow the saved report's policy when rebuilding HTML; editing guidance does not override that policy. For an UNKNOWN result, describe how the report administrator should restore missing evidence rather than telling the app owner to change an unverified setting.
+
+The next collection uses the edited files. To rebuild HTML from existing data without another tenant scan:
+
+```powershell
+./scripts/Render-EntraAppsReport.ps1 -DataPath ./reports/latest/report.json
+```
+
+This updates HTML and creates `mail-findings.csv` beside the HTML using the current wording files; it does not overwrite the saved JSON. Newly collected JSON records the wording catalog in `remediationConfiguration` and expanded `title`, `summary` and `actions` on each finding. HTML, Markdown/print, Excel and the mail CSV share the expanded wording. `ActionSummary` and `CorrectiveActions` retain failure scope and owner-source attribution for the mail flow. No additional Graph permissions are needed, no changes are made to applications, and rule IDs/statuses remain stable. Review the generated text after a wording edit. Coordinate credential and authentication changes with the application team before removing an old credential or disabling a flow.

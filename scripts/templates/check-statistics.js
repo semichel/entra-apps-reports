@@ -15,7 +15,7 @@ function EntraCheckStatistics({rows, onSelect, selection}) {
             (0,z.jsx)("h2", {className: "text-lg font-semibold mb-2", children: "Results by check"}),
             (0,z.jsx)("p", {className: "text-sm text-gray-500 dark:text-gray-400 mb-4", children: "Each application is counted once per check. Matching app registrations are included with their enterprise application. Report scope is excluded."}),
             onSelect && (0,z.jsxs)("div", {className: "entra-graph-controls", children: [
-                (0,z.jsx)("span", {children: selection?.check ? `Filter: ${selection.check}${selection.status ? ' / ' + selection.status : ' / all results'}` : 'Select a check or result to filter the application list.'}),
+                (0,z.jsx)("span", {children: selection?.check ? `Filter: ${rows.find(row => row.Check === selection.check)?.Title || selection.check}${selection.status ? ' / ' + selection.status : ' / all results'}` : 'Select a check or result to filter the application list.'}),
                 selection?.check && (0,z.jsx)("button", {type: "button", onClick: () => choose(), children: "Clear check filter"})
             ]}),
             (0,z.jsx)("div", {style: {overflowX: "auto"}, children:
@@ -26,10 +26,10 @@ function EntraCheckStatistics({rows, onSelect, selection}) {
                         (0,z.jsx)("tr", {className: "border-t border-gray-200 dark:border-gray-700", children: columns.map(([key]) =>
                             (0,z.jsx)("td", {style: {padding: onSelect ? 0 : "10px", color: key === "Check" || !row[key] ? undefined : colors[key], fontWeight: row[key] ? 600 : undefined}, children: onSelect ? (0,z.jsx)("button", {
                                 type: "button", className: "entra-check-filter",
-                                "aria-label": key === "Check" ? `Show all ${row.Check} results` : `Show ${row.Check} ${key} applications (${row[key]})`,
+                                "aria-label": key === "Check" ? `Show all ${row.Title || row.Check} results` : `Show ${row.Title || row.Check} ${key} applications (${row[key]})`,
                                 "aria-pressed": selection?.check === row.Check && (key === "Check" ? !selection.status : selection.status === key),
-                                onClick: () => choose(row.Check, key === "Check" ? undefined : key), children: row[key]
-                            }) : row[key]}, key))}, row.Check))})
+                                onClick: () => choose(row.Check, key === "Check" ? undefined : key), children: key === "Check" ? (row.Title || row.Check) : row[key]
+                            }) : key === "Check" ? (row.Title || row.Check) : row[key]}, key))}, row.Check))})
                 ]})
             })
         ]

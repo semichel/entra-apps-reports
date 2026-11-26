@@ -1,0 +1,18 @@
+{
+  "title": "App registration administrator owners",
+  "FAIL": {
+    "summary": "The app registration needs at least {{minimumRegistrationAdminOwners}} user owner(s) whose UPN starts with {{ownerUpnPrefix}}.",
+    "actions": [
+      "In Entra admin center, open App registrations, select All applications and locate this registration using its registration Object ID or Application (client) ID.",
+      "Open Owners and add the responsible administrator account. Its UPN must start with {{ownerUpnPrefix}}.",
+      "Ensure at least {{minimumRegistrationAdminOwners}} qualifying administrator owner(s) are listed, then run the report again. Enterprise application owners are checked separately and may be different people."
+    ]
+  },
+  "UNKNOWN": {
+    "summary": "Registration or owner details are incomplete. The report cannot confirm whether the app registration has enough administrator owners.",
+    "actions": [
+      "Ask the report administrator to check registration and owner collection, including Application.Read.All and User.Read.All consent.",
+      "Collect a new report before changing owners based on incomplete evidence."
+    ]
+  }
+}

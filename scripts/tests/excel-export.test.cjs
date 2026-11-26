@@ -49,7 +49,12 @@ async function main() {
     const lines = text.split('\r\n').map(line => line.split('\t'));
     const value = (row, column) => lines[row][lines[0].indexOf(column)];
     assert.equal(lines.length, 5);
-    assert.equal(lines[0].length, 16);
+    assert.equal(lines[0].length, 18);
+    assert.ok(data.columns.includes('ActionSummary'));
+    assert.ok(data.columns.includes('CorrectiveActions'));
+    const actionData = context.EntraExcelData([{ ExcelRows: [{ ...rows[0], CheckTitle: 'Friendly title', ActionSummary: 'Missing configuration', CorrectiveActions: '1. Open app\n2. Save' }] }], tenant.CheckStatistics);
+    assert.match(actionData.rows[0].ActionSummary, /Friendly title: Missing configuration/);
+    assert.match(actionData.rows[0].CorrectiveActions, /Friendly title: 1\. Open app\n2\. Save/);
     assert.ok(lines.every(line => line.length === lines[0].length));
     assert.equal(lines[1][0], "'=Example");
     assert.equal(value(1, 'Notes'), 'First line Second line – äö');

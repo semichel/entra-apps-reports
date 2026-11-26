@@ -8,7 +8,7 @@ This directory contains the production report pipeline. GitHub Actions is the su
 |---|---|---|
 | [Validate-ProductionConfig.ps1](Validate-ProductionConfig.ps1) | Offline validation of reader IDs, tenant label, rules and exclusions. Does not authenticate or call Graph. | Script parameters: `ConfigPath`, `TenantId`, `ClientId`. |
 | [Export-EntraAppsReport.ps1](Export-EntraAppsReport.ps1) | Collects inventory using an existing Graph context, enriches it, evaluates rules and writes artifacts. | Script parameters: `ConfigPath`, `OutputDirectory`, `TenantId`, `ClientId`. |
-| [Render-EntraAppsReport.ps1](Render-EntraAppsReport.ps1) | Regenerates the original HTML report from saved JSON without Graph. | `DataPath`, optional `OutputPath`. |
+| [Render-EntraAppsReport.ps1](Render-EntraAppsReport.ps1) | Regenerates HTML and the mail CSV beside it from saved JSON without Graph. | `DataPath`, optional `OutputPath`. |
 | [Write-ActionSummary.ps1](Write-ActionSummary.ps1) | Optional legacy Markdown export from saved JSON; no longer called by the production workflow. Does not call Graph. | Required parameters: `ReportPath`, `ArtifactUrl`, `OutputPath`. |
 | [Report.Common.ps1](Report.Common.ps1) | Dictionary helpers, Graph requests and pagination, logging, base inventory construction, configuration/context validation and artifact orchestration. Loads the rule library. | `Get-Val`, `Get-Str`, `Invoke-MgGetAll`, `Get-LiveAppReport`, `Read-ReportDeployment`, `Assert-ReportDeploymentContext`, `Export-AppReport`. |
 | [Report.Batch.ps1](Report.Batch.ps1) | Complete relationship reads in batches of up to 20 GETs, with per-response retry/pagination and core-versus-optional failures. Cache lasts only for the current collection. | `Get-ReportRelationshipEvidence`, `Invoke-ReportBatchGetAll`. |
@@ -27,8 +27,8 @@ The reader requires Microsoft Graph application permissions `Application.Read.Al
 3. `Export-EntraAppsReport.ps1` validates the connected tenant, client and Global cloud against the supplied IDs before any inventory requests.
 4. App registrations and a full service-principal catalog are each collected once. The catalog includes permission definitions for resource principals; only objects with `servicePrincipalType = Application` become enterprise report entries. Microsoft-owned objects are categorized by owning tenant IDs. Relationship collections are prefetched in batches of up to 20 GETs: SPN owners when expansion is incomplete, assignments, granted app roles, registration owners when needed, and federation. Core owner/assignment failures stop collection; optional failures remain UNAVAILABLE with no partial records.
 5. `Add-ExtendedEvidence` reuses the registrations, full principal catalog and prefetched evidence, resolving permission names without another catalog download or relationship query. Active directory role assignments are read once with `$expand=roleDefinition` and pagination; only assignments to reported application principals are retained. User profiles are loaded once with pagination and indexed by object ID and employee ID for owner contact matching.
-6. `Export-AppReport` evaluates rules and writes only JSON and HTML. It removes the four previous automatic CSV files after successful rendering. Manual CSV helper functions and original UI exports are retained.
-7. The workflow uploads `reports/latest/` as an evidence artifact and copies only the self-contained HTML to `site/index.html` with `.nojekyll` for a separate Pages artifact. Graph is disconnected in a `finally` block during collection.
+6. `Export-AppReport` evaluates rules and writes JSON, HTML and `mail-findings.csv`. It removes the four previous automatic inventory CSV files after successful rendering. Manual CSV helper functions and original UI exports are retained.
+7. The workflow uploads JSON/HTML as the report artifact and `mail-findings.csv` as the separate, consistently named `entra-apps-mail` artifact. It copies only the self-contained HTML to `site/index.html` with `.nojekyll` for a separate Pages artifact. Graph is disconnected in a `finally` block during collection.
 8. The dependent deploy job checks the Pages public flag and repository visibility through the API. Unknown visibility is rejected. Public Pages is permitted for public repositories; private/internal repositories require private Pages access. It deploys the Pages artifact to `github-pages` and writes a website link. A private/internal repository alone is insufficient. The deploy job has Pages write access but no Azure login; keeping its environment separate preserves the report job's existing Entra OIDC subject. Workflow-level concurrency prevents overlapping report deployments.
 
 The current workflow is manually dispatched and has a 30-minute timeout. A successful workflow means collection and publication succeeded; FAIL findings do not themselves cause a nonzero script exit. There is no separate notification or remediation step.
@@ -41,6 +41,7 @@ The final JSON schema version is `3.0`; version `2.0` input remains readable. A 
 |---|---|
 | `tenantId`, `tenantDisplayName`, `generatedAtUtc`, `mode` | Identity, report label, collection timestamp and inventory mode. |
 | `ruleConfiguration` | Validated rule settings, disabled checks and exclusions saved with that run. |
+| `remediationConfiguration` | Validated check wording loaded from `config/remediation/*.json` for the current generation. Finding `title`, `summary` and `actions` contain the expanded user-facing wording. |
 | `inventoryScope` | Microsoft-app exclusion flag and counts. |
 | `applications` | Retained enterprise applications with their linked registration, owners, assignments, credentials, permissions, findings and overall status. |
 | `registrations` | All collected app registrations, including those without a retained enterprise application. |
@@ -56,7 +57,7 @@ Evidence wrappers use `{ status, items, reason }`, where availability is `AVAILA
 
 Owner contact fields are `employeeId`, `userEmail`, `contactUserId`, `contactUserPrincipalName` and `contactMatchStatus`. Matching requires exactly one account with the same nonempty employee ID and a UPN outside `rules.ownerUpnPrefix`; a regular owner may match itself. Only the matched account's `mail` is used, never its UPN as a fallback. Statuses are `MATCHED`, `MISSING_EMPLOYEE_ID`, `NO_REGULAR_ACCOUNT`, `AMBIGUOUS`, `MISSING_USER_EMAIL`, `OWNER_USER_NOT_FOUND` and `NOT_APPLICABLE` for non-user owners. Contact matching does not change check results. User catalog failures stop collection rather than presenting missing permission as missing employee IDs. The catalog stays in memory and is not serialized; only owner and matched-contact evidence is retained. Email delivery is not implemented.
 
-A finding uses `{ rule, status, evidence }`. Keep rule IDs stable: config exclusions, statistics and filter tags depend on them. The ten current rule IDs are `Assignments`, `RedirectUriSecurity`, `CredentialDates`, `FederatedCredentials`, `EnterpriseAdminOwner`, `Notes`, `RegistrationAdminOwner`, `ClientSecrets`, `ImplicitFlow` and `OwnersMatch`.
+A finding uses `{ rule, status, evidence }`. Keep rule IDs stable: config exclusions, statistics and filter tags depend on them. The ten current rule IDs are `Assignments`, `RedirectUriSecurity`, `CredentialDates`, `FederatedCredentials`, `EnterpriseAdminOwner`, `Notes`, `RegistrationAdminOwner`, `ClientSecrets`, `ImplicitFlow` and `OwnersMatch`. `OwnersMatch` is informational: differing owner ID sets produce WARN, matching nonempty sets PASS, and unavailable evidence UNKNOWN. It remains in statistics, filters and exports but is excluded from overall status aggregation and severity ranking. Admin-owner checks remain requirements on each object independently.
 
 | Finding status | Meaning / application result |
 |---|---|
@@ -82,6 +83,7 @@ Disabled checks and app exclusions are applied after evaluation and remain visib
 |---|---|
 | `report.json` | Full collected report and saved configuration. |
 | `report.html` | Self-contained interactive report, including unmatched registrations and report scope. |
+| `mail-findings.csv` | Automatic mail-flow input: one row per failed check and owner/source, with editable summaries/actions and explicit contact eligibility. Separate Actions artifact: `entra-apps-mail`. |
 | `findings.csv` (manual export only) | Findings for retained enterprise applications, including their registration checks. Standalone registration findings are not exported here. |
 | `owners.csv` (manual export only) | Owner account and contact-match evidence for both enterprise applications and all registrations. |
 | `assignments.csv`, `credentials.csv` (manual export only) | Detailed evidence for retained enterprise applications; these exclude standalone registrations. |
@@ -103,17 +105,83 @@ The optional legacy Markdown exporter retains its 1 MiB budget and truncation no
 
 HTML generation patches specific anchors in the bundled JavaScript and replaces the payload ending in `EndOfJson`. Several anchors require exactly one match and fail explicitly if the template changes. A template upgrade therefore requires reviewing `Export-ReportHtml`, generated JavaScript syntax and actual UI behavior. The component JavaScript uses the bundle's existing React runtime; there is no separate frontend build or Python dependency.
 
-`Get-ReportAppDetails -Split` returns both the object panels and the complete Markdown export; its default return value remains plain Markdown. Assignments, SPN Notes, enterprise owners and granted API permissions belong to the SPN column. Registration owners, authentication settings, requested permissions and federation belong to the registration column. Credential rows follow their recorded source. SAML reply URLs and their check belong to the SPN; web/SPA/native callbacks belong to the registration. OwnersMatch and combined credential checks remain shared. Missing local registrations or SPNs have explicit availability messages. The generated detail card is neutral regardless of application result; its original status/severity badges remain. FAIL highlighting is scoped to detail-table rows, with responsive stacking below 1000px and in print.
+`Get-ReportAppDetails -Split` returns both the object panels and the complete Markdown export; its default return value remains plain Markdown. Failed checks begin with friendly titles, issue summaries and numbered correction steps, followed by collected evidence. `failedChecks` retains stable `Check` IDs and adds `Title`, `Summary` and `Actions` for Excel failure/owner rows. Assignments, SPN Notes, enterprise owners and granted API permissions belong to the SPN column. Registration owners, authentication settings, requested permissions and federation belong to the registration column. Credential rows follow their recorded source. SAML reply URLs and their check belong to the SPN; web/SPA/native callbacks belong to the registration. OwnersMatch and combined credential checks remain shared. Missing local registrations or SPNs have explicit availability messages. The generated detail card is neutral regardless of application result; its original status/severity badges remain. FAIL highlighting is scoped to detail-table rows, with responsive stacking below 1000px and in print.
+
+`Read-ReportRemediation` in `Report.Rules.ps1` validates the ten check wording files and applicable result sections during preflight. `Get-ReportResults` reads the catalog once per generation and calls `Set-ReportRemediation` after governance evaluation. This keeps wording separate from status/severity decisions. Substitution only replaces `{{ruleSetting}}` with a policy value; it never evaluates expressions. Rendering escapes the resulting text. Current wording is reapplied to saved evidence; raw evidence and stable filter/exclusion IDs remain unchanged. See [the configuration reference](../config/README.md#report-wording-and-correction-steps) for user edits.
 
 `EntraMarkdownPreview` bounds the Markdown-page parser input to 65,536 characters and cuts at a newline where possible. Large reports otherwise send every manifest and detail table into the preview at once. This limit affects only rendered preview, never the source textarea, Copy Markdown or saved evidence. A visible notice identifies limited previews. Severity filtering uses only the selected severity, across every application status; full-width native button rows provide the clickable area even for tiny bars, and preserve keyboard operation. Explicit Clear resets selection; repeated clicks retain it.
 
 `Get-ReportGraphAccess` applies the access and configuration ranking documented in the root README. It never changes a configuration finding. Granted Graph app roles are deduplicated against requested app roles; delegated requests never become verified grants. The Critical role IDs are the stable Global Administrator and Privileged Role Administrator template IDs. All other direct active directory roles are conservatively High, including reader roles. Configuration FAIL/WARN/UNKNOWN findings contribute their documented severity, saved in `configurationRisks`; PASS/SKIPPED/NOT_APPLICABLE do not. The highest matching rule wins. Permission-name operation matching is a review heuristic. Missing grant/role/catalog evidence stays visible; Info does not mean access is verified safe. Severity charts include all application statuses and exclude the report-scope entry. Home covers all applications; Graph covers applications with observed Graph permissions or directory roles. The Graph access-distribution chart counts every application once, with write grants taking precedence, and reports applications with no observed Graph permissions separately. These charts show tenant totals, independent of the application-list filters. Offline rendering recalculates ranking from saved evidence; older snapshots show role evidence as NOT_COLLECTED until a fresh collection is run.
 
-Inventory text is escaped for Markdown/HTML, the embedded JSON uses HTML escaping, and CSV text is protected against spreadsheet formula interpretation. Preserve these safeguards when adding fields.
+Inventory text is escaped for Markdown/HTML, the embedded JSON uses HTML escaping, and spreadsheet exports protect against formula interpretation. The machine-readable mail CSV preserves exact data and quoted multiline values; consuming mail flows must treat it as data and HTML-encode fields if building an HTML message. Preserve these boundaries when adding fields.
+
+## Mail-flow CSV contract
+
+The producing workflow uploads `reports/latest/mail-findings.csv` as **entra-apps-mail**. The artifact name is the same in each run; the source **run ID** selects the exact export. Retention follows repository/organization artifact settings. Only FAIL findings are included; WARN/UNKNOWN/informational results do not become mail failures. Empty reports still produce a header-only CSV. Rows with no usable recipient remain present for review.
+
+| Columns | Meaning |
+|---|---|
+| `SchemaVersion` | CSV contract version, currently `1.0`. |
+| `FindingKey` | Stable combination of tenant, app, check, scope, owner source and owner ID. Use with the run ID in a sending ledger to avoid processing the same delivery twice. |
+| `TenantId`, `TenantName`, `ReportGeneratedAtUtc`, `ExportedAtUtc` | Source tenant and data/export times. Rebuilding a saved report does not make its inventory newer. |
+| `SourceRepository`, `ReportRunId`, `ReportRunUrl` | Producer run identity in Actions. Blank for a local export. |
+| `Application`, `AppId`, `ServicePrincipalId`, `RegistrationId`, `Notes` | Application name, identifiers and enterprise application Notes. |
+| `CheckId`, `CheckTitle`, `Status`, `AppliesTo` | Stable rule ID, friendly check title, FAIL status and affected object scope. |
+| `OwnerSource`, `OwnerId`, `OwnerName`, `OwnerAccount` | The owner account and whether it owns the SPN or registration. |
+| `UserEmail`, `ContactMatchStatus` | Regular-user contact evidence matched through employee ID. No fallback from owner UPN is made. |
+| `ReadyToSend`, `RecipientEmail` | `ReadyToSend` is `true` only for MATCHED contacts with one plain email address of valid format; only then is `RecipientEmail` filled. This is contact eligibility, not proof of mailbox deliverability or permission to send. |
+| `ActionSummary`, `CorrectiveActions`, `Evidence` | Configured issue summary, numbered correction steps separated by newlines, and original collected details. These are dynamic mail-template fields. |
+
+The CSV uses UTF-8, comma delimiters and standard quoting. Use `Import-Csv` or another CSV parser; do not split lines or commas manually because names, Notes and correction steps can contain both. Existing spreadsheet export behavior is unchanged.
+
+### Read from a different repository on the same GitHub host
+
+Runners do not connect directly to one another. The mail workflow downloads the producer's artifact from GitHub. Its default `GITHUB_TOKEN` is scoped to its own repository and cannot read the other private report repository. Use a GitHub App installation token with **Actions: read** on the report repository, or a fine-grained personal access token restricted to that repository and permission. No Graph write or mail-send permissions are added to this report project. See [GitHub token scope](https://docs.github.com/en/actions/concepts/security/github_token) and [cross-run/repository artifact downloads](https://github.com/actions/download-artifact#download-artifacts-from-other-workflow-runs-or-repositories).
+
+The following are steps for the future mail workflow, not a new sender workflow in this repository. `REPORT_ARTIFACT_TOKEN` represents a token approved on your company host; a GitHub App workflow can supply its generated token instead. Select a completed successful run of this producer workflow on `main`, then download from that exact run. A workflow in another repository cannot use `workflow_run` as a cross-repository trigger; poll from its schedule/manual trigger or arrange an explicit dispatch later.
+
+```yaml
+env:
+  REPORT_REPOSITORY: saabgroup/entra-app_registration_report
+
+steps:
+  - name: Find latest successful report run
+    id: report
+    shell: pwsh
+    env:
+      GH_TOKEN: ${{ secrets.REPORT_ARTIFACT_TOKEN }}
+    run: |
+      $ErrorActionPreference = 'Stop'
+      $env:GH_HOST = ([uri]$env:GITHUB_SERVER_URL).Host
+      $json = gh api "repos/$env:REPORT_REPOSITORY/actions/workflows/report.yml/runs?branch=main&status=success&per_page=1"
+      if ($LASTEXITCODE -ne 0) { throw 'Report run lookup failed.' }
+      $runs = ($json | ConvertFrom-Json -AsHashtable).workflow_runs
+      if (-not $runs.Count) { throw 'No successful report run is available.' }
+      "run-id=$($runs[0].id)" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+
+  - name: Download mail CSV from the report repository
+    uses: actions/download-artifact@v4
+    with:
+      name: entra-apps-mail
+      repository: ${{ env.REPORT_REPOSITORY }}
+      run-id: ${{ steps.report.outputs.run-id }}
+      github-token: ${{ secrets.REPORT_ARTIFACT_TOKEN }}
+      path: ${{ runner.temp }}/report-mail
+
+  - name: Import eligible mail rows
+    shell: pwsh
+    run: |
+      $path = Join-Path $env:RUNNER_TEMP 'report-mail/mail-findings.csv'
+      $rows = @(Import-Csv -LiteralPath $path -Encoding utf8)
+      $eligible = @($rows | Where-Object { $_.ReadyToSend -eq 'true' -and $_.RecipientEmail })
+      Write-Host "$($eligible.Count) eligible rows; $($rows.Count - $eligible.Count) unresolved contacts. No mail sent."
+```
+
+Before the sender actually delivers messages, validate schema, expected tenant/repository and source run, check report freshness and skip runs already processed. Use `RecipientEmail`, `Application`, `CheckTitle`, `ActionSummary` and `CorrectiveActions` as template fields. Group by recipient if one message should summarize several findings. Credentials, delivery permissions, sending policy and the delivery ledger belong to the mail workflow; they are not implemented here.
 
 ## Maintaining the code
 
-For a new check, add its stable ID to config validation, implement its evaluation in `Report.Rules.ps1`, include it in the checks rebuilt by `Update-AppGovernance`, and document its settings in the root README. Statistics and tags are derived from findings automatically. Collect any new evidence in `Report.Evidence.ps1` or the initial inventory query; add its presentation in `Get-ReportAppDetails` if needed.
+For a new check, add its stable ID to config validation, implement its evaluation in `Report.Rules.ps1`, include it in the checks rebuilt by `Update-AppGovernance`, and document its settings in the root README. Add `config/remediation/<CheckId>.json` and register its required result sections in `Read-ReportRemediation`. Statistics and tags are derived from findings automatically. Collect any new evidence in `Report.Evidence.ps1` or the initial inventory query; add its presentation in `Get-ReportAppDetails` if needed.
 
 Use `Get-Val`/`Get-Str` for Graph dictionaries. Missing helper values return null. Follow `@odata.nextLink` explicitly with `Invoke-MgGetAll`. Expanded owners are accepted only below the 20-owner expansion limit with no next link; otherwise the collector uses a separate owners query. Preserve that completeness check.
 

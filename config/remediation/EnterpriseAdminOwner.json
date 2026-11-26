@@ -1,0 +1,18 @@
+{
+  "title": "Enterprise application administrator owners",
+  "FAIL": {
+    "summary": "The enterprise application needs at least {{minimumEnterpriseAdminOwners}} user owner(s) whose UPN starts with {{ownerUpnPrefix}}.",
+    "actions": [
+      "In Entra admin center, open Enterprise applications and locate this application using its enterprise application Object ID.",
+      "Open Owners and add the responsible administrator account. Its UPN must start with {{ownerUpnPrefix}}.",
+      "Ensure at least {{minimumEnterpriseAdminOwners}} qualifying administrator owner(s) are listed, then run the report again. Registration owners are checked separately and may be different people."
+    ]
+  },
+  "UNKNOWN": {
+    "summary": "Owner details are incomplete. The report cannot confirm whether the enterprise application has enough administrator owners.",
+    "actions": [
+      "Ask the report administrator to check owner collection and the reader application's Application.Read.All and User.Read.All consent.",
+      "Collect a new report with readable owner UPNs before adding or removing owners based on this result."
+    ]
+  }
+}

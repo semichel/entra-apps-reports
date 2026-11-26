@@ -29,6 +29,7 @@ function Assert-ReportPrerequisites {
     foreach ($relativePath in @('Report.Render.ps1', 'Report.Rules.ps1', 'Report.Evidence.ps1', 'Report.Batch.ps1', 'templates/report.html', 'templates/check-statistics.js', 'templates/report-filters.js', 'templates/graph-overview.js', 'templates/application-details.js', 'templates/excel-export.js', 'templates/saab-logo.png', 'templates/brand.css')) {
         if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $relativePath) -PathType Leaf)) { throw "Missing report file: $relativePath. Copy the complete project before running; no inventory requests have been made." }
     }
+    $null = Read-ReportRemediation
 }
 
 #= Phase logging
@@ -212,7 +213,7 @@ function Read-ReportDatabase {
     return $report
 }
 
-#= Store JSON data and render HTML; manual export helpers remain available
+#= Store report data, render HTML and prepare the mail-flow CSV
 function Export-AppReport {
     param($Report, [string]$OutputDirectory)
     Update-ReportGovernance $Report
@@ -225,6 +226,8 @@ function Export-AppReport {
     . (Join-Path $PSScriptRoot 'Report.Render.ps1')
     Write-ReportLog 'Rendering the interactive HTML report with PowerShell.'
     Export-ReportHtml $Report (Join-Path $OutputDirectory 'report.html')
+    $mailRows = Export-ReportMailCsv $Report (Join-Path $OutputDirectory 'mail-findings.csv')
+    Write-ReportLog ("Writing mail-findings.csv: $mailRows failed-check / owner rows. No email is sent.")
     foreach ($legacyFile in @('findings.csv','owners.csv','assignments.csv','credentials.csv')) {
         $legacyPath = Join-Path $OutputDirectory $legacyFile
         if (Test-Path -LiteralPath $legacyPath -PathType Leaf) { Remove-Item -LiteralPath $legacyPath }

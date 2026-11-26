@@ -1,0 +1,19 @@
+{
+  "title": "Access assignments",
+  "FAIL": {
+    "summary": "Access is not restricted to assignments, or no user, group or service has been assigned.",
+    "actions": [
+      "In Entra admin center, open Enterprise applications and find this application using its enterprise application Object ID.",
+      "Open Properties, set Assignment required? to Yes and save.",
+      "Open Users and groups and assign the approved users or groups. If access is service-to-service, ask the application administrator to assign the approved service principal instead.",
+      "Run the report again. This check passes when assignment is required and at least one assignment exists."
+    ]
+  },
+  "UNKNOWN": {
+    "summary": "The report could not read the assignment setting, so it cannot confirm whether access is restricted.",
+    "actions": [
+      "Ask the report administrator to check the collection errors and the reader application's Application.Read.All consent.",
+      "Run collection again before changing access settings based on incomplete evidence."
+    ]
+  }
+}

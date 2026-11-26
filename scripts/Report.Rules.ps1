@@ -1,6 +1,68 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+#= Read editable check wording once per report and reject incomplete guidance
+function Read-ReportRemediation {
+    param([string]$Directory = (Join-Path $PSScriptRoot '../config/remediation'))
+    $catalog = @{}
+    $knownRules = (Get-ReportRuleConfiguration @{}).rules
+    $required = [ordered]@{ Assignments = @('FAIL','UNKNOWN'); RedirectUriSecurity = @('FAIL'); CredentialDates = @('FAIL','WARN','UNKNOWN'); FederatedCredentials = @('UNKNOWN'); ClientSecrets = @('WARN'); ImplicitFlow = @('WARN','UNKNOWN'); OwnersMatch = @('WARN','UNKNOWN'); EnterpriseAdminOwner = @('FAIL','UNKNOWN'); RegistrationAdminOwner = @('FAIL','UNKNOWN'); Notes = @('WARN') }
+    foreach ($rule in $required.Keys) {
+        $path = Join-Path $Directory ($rule + '.json')
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing remediation configuration: $path." }
+        $entry = Get-Content -LiteralPath $path -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+        if ($entry -isnot [Collections.IDictionary] -or $entry['title'] -isnot [string] -or [string]::IsNullOrWhiteSpace($entry['title'])) { throw "Remediation $rule requires a nonempty title." }
+        foreach ($status in $required[$rule]) {
+            if (-not $entry.Contains($status)) { throw "Missing remediation configuration for $rule/$status in $path." }
+        }
+        $null = Expand-ReportRemediationText $entry['title'] $knownRules
+        foreach ($key in $entry.Keys) {
+            if ($key -notin @('title','FAIL','WARN','UNKNOWN')) { throw "Unknown remediation field '$key' in $rule." }
+            if ($key -eq 'title') { continue }
+            $message = $entry[$key]
+            if ($message -isnot [Collections.IDictionary] -or $message['summary'] -isnot [string] -or [string]::IsNullOrWhiteSpace($message['summary']) -or $message['actions'] -isnot [array] -or -not $message['actions'].Count) { throw "Remediation $rule/$key requires a summary and nonempty actions array." }
+            $null = Expand-ReportRemediationText $message['summary'] $knownRules
+            foreach ($field in $message.Keys) {
+                if ($field -notin @('summary','actions')) { throw "Unknown remediation field '$field' in $rule/$key." }
+            }
+            foreach ($action in $message['actions']) {
+                if ($action -isnot [string] -or [string]::IsNullOrWhiteSpace($action)) { throw "Remediation $rule/$key actions must be nonempty strings." }
+                $null = Expand-ReportRemediationText $action $knownRules
+            }
+        }
+        $catalog[$rule] = $entry
+    }
+    return $catalog
+}
+
+#= Substitute policy values as plain text without evaluating configuration as code
+function Expand-ReportRemediationText {
+    param([string]$Text, $Rules)
+    foreach ($match in [regex]::Matches($Text, '\{\{([A-Za-z][A-Za-z0-9]*)\}\}')) {
+        $key = $match.Groups[1].Value
+        if (-not $Rules.Contains($key)) { throw "Unknown remediation placeholder: $key." }
+        $Text = $Text.Replace($match.Value, [string](Get-Val $Rules $key))
+    }
+    return $Text
+}
+
+#= Attach configured wording without changing evidence, rule IDs or check results
+function Set-ReportRemediation {
+    param($App, $Catalog, $Rules)
+    foreach ($finding in @((Get-Val $App 'findings')) | Where-Object { $null -ne $_ }) {
+        $rule = Get-Str $finding 'rule'; $status = Get-Str $finding 'status'
+        $entry = Get-Val $Catalog $rule
+        if ($null -eq $entry) { throw "No remediation configuration exists for check $rule." }
+        $finding['title'] = Expand-ReportRemediationText (Get-Str $entry 'title') $Rules
+        $finding['summary'] = $null; $finding['actions'] = @()
+        if ($status -notin @('FAIL','WARN','UNKNOWN')) { continue }
+        $message = Get-Val $entry $status
+        if ($null -eq $message) { throw "No remediation configuration exists for $rule/$status." }
+        $finding['summary'] = Expand-ReportRemediationText (Get-Str $message 'summary') $Rules
+        $finding['actions'] = @((Get-Val $message 'actions') | ForEach-Object { Expand-ReportRemediationText $_ $Rules })
+    }
+}
+
 #= Merge defaults and reject invalid policy settings before collection
 function Get-ReportRuleConfiguration {
     param($Config)
@@ -140,21 +202,22 @@ function New-NotesFinding {
     return New-Finding 'Notes' $status $evidence
 }
 
-#= Compare complete owner object ID sets on local application and service principal
+#= Report owner-list differences without affecting approval
 function New-OwnerMatchFinding {
     param($App, [bool]$Required = $true)
     if (-not $Required) { return New-Finding 'OwnersMatch' 'SKIPPED' 'Owner matching disabled in configuration.' }
     $registration = Get-Val $App 'registration'
     if (-not (Get-Str $App 'servicePrincipalId') -or $null -eq $registration) { return New-Finding 'OwnersMatch' 'NOT_APPLICABLE' 'Both a local registration and SPN are required for owner comparison.' }
     $registrationOwners = Get-Val $registration 'owners'
-    if ((Get-Str $registrationOwners 'status') -ne 'AVAILABLE') { return New-Finding 'OwnersMatch' 'UNKNOWN' 'Registration owner evidence is unavailable.' }
+    $availability = Get-Str $App 'ownerEvidenceStatus'
+    if (($availability -and $availability -ne 'AVAILABLE') -or (Get-Str $registrationOwners 'status') -ne 'AVAILABLE') { return New-Finding 'OwnersMatch' 'UNKNOWN' 'Informational only: owner evidence is unavailable; owner lists cannot be compared. This does not affect the application result.' }
     $unresolved = @(@(Get-Val $App 'owners') + @(Get-Val $registrationOwners 'items') | Where-Object { $null -ne $_ -and -not (Get-Str $_ 'id') })
-    if ($unresolved.Count) { return New-Finding 'OwnersMatch' 'UNKNOWN' 'One or more owner object IDs are missing; owner sets cannot be compared.' }
+    if ($unresolved.Count) { return New-Finding 'OwnersMatch' 'UNKNOWN' 'Informational only: one or more owner object IDs are missing; owner lists cannot be compared. This does not affect the application result.' }
     $left = @((Get-Val $App 'owners') | Where-Object { $null -ne $_ } | ForEach-Object { Get-Str $_ 'id' } | Sort-Object -Unique)
     $right = @((Get-Val $registrationOwners 'items') | Where-Object { $null -ne $_ } | ForEach-Object { Get-Str $_ 'id' } | Sort-Object -Unique)
     $missing = @($left | Where-Object { $_ -notin $right }) + @($right | Where-Object { $_ -notin $left })
-    $status = if (-not $left.Count -and -not $right.Count) { 'WARN' } elseif ($missing.Count) { 'FAIL' } else { 'PASS' }
-    return New-Finding 'OwnersMatch' $status ('SPN owners: {0}; registration owners: {1}; nonmatching owner IDs: {2}. Compares all owner object IDs, not only admin accounts.' -f $left.Count, $right.Count, ($missing -join ', '))
+    $status = if (-not $left.Count -and -not $right.Count -or $missing.Count) { 'WARN' } else { 'PASS' }
+    return New-Finding 'OwnersMatch' $status ('Informational only: SPN owners: {0}; registration owners: {1}; nonmatching owner IDs: {2}. Compares all owner object IDs, not only admin accounts. Does not affect the application result or severity; admin-owner requirements are checked separately.' -f $left.Count, $right.Count, ($missing -join ', '))
 }
 
 #= Replace obsolete checks and evaluate each object separately
@@ -182,7 +245,7 @@ function Update-AppGovernance {
     }
     Set-ReportFindingExclusions $App $findings $Configuration
     $App['findings'] = $findings.ToArray()
-    $statuses = @($findings | ForEach-Object { Get-Str $_ 'status' })
+    $statuses = @($findings | Where-Object { (Get-Str $_ 'rule') -ne 'OwnersMatch' } | ForEach-Object { Get-Str $_ 'status' })
     if ($App.Contains('manualValidationRequired')) { $App.Remove('manualValidationRequired') }
     if ($App.Contains('delegatedConsentGrants')) { $App.Remove('delegatedConsentGrants') }
     $App['status'] = if ($statuses -contains 'FAIL') { 'FAIL' } elseif ($statuses -contains 'UNKNOWN') { 'UNKNOWN' } elseif ($statuses -contains 'WARN') { 'WARN' } elseif ($statuses -contains 'PASS') { 'PASS' } elseif ($statuses -contains 'SKIPPED') { 'SKIPPED' } else { 'UNKNOWN' }

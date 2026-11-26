@@ -120,8 +120,8 @@ function Get-ReportGraphAccess {
     $configurationRisks = [Collections.Generic.List[object]]::new()
     foreach ($finding in @((Get-Val $App 'findings')) | Where-Object { $null -ne $_ }) {
         $status = Get-Str $finding 'status'; $rule = Get-Str $finding 'rule'
-        if ($status -notin @('FAIL','WARN','UNKNOWN')) { continue }
-        $findingSeverity = if ($status -eq 'FAIL' -and $rule -in @('CredentialDates','RedirectUriSecurity')) { 'High' } elseif ($status -in @('FAIL','UNKNOWN') -or $rule -in @('ClientSecrets','CredentialDates','ImplicitFlow','OwnersMatch')) { 'Medium' } else { 'Low' }
+        if ($rule -eq 'OwnersMatch' -or $status -notin @('FAIL','WARN','UNKNOWN')) { continue }
+        $findingSeverity = if ($status -eq 'FAIL' -and $rule -in @('CredentialDates','RedirectUriSecurity')) { 'High' } elseif ($status -in @('FAIL','UNKNOWN') -or $rule -in @('ClientSecrets','CredentialDates','ImplicitFlow')) { 'Medium' } else { 'Low' }
         $configurationRisks.Add(@{ rule = $rule; status = $status; severity = $findingSeverity })
         $reasons.Add(('Configuration check {0}: {1} ({2}).' -f $rule, $status, $findingSeverity))
         if ($rank[$findingSeverity] -gt $rank[$severity]) { $severity = $findingSeverity }
@@ -251,20 +251,32 @@ function Get-ReportAppDetails {
     $rows.Clear()
     $icons = @{ PASS = '✅'; WARN = '⚠'; FAIL = '❌'; UNKNOWN = '❔'; NOT_APPLICABLE = '—'; SKIPPED = '⏭' }
     $checkRows = @{ SPN = [Collections.Generic.List[object]]::new(); Registration = [Collections.Generic.List[object]]::new(); Shared = [Collections.Generic.List[object]]::new() }
-    $failedRows = [Collections.Generic.List[object]]::new()
+    $failedChecks = [Collections.Generic.List[object]]::new()
+    $failedText = [Text.StringBuilder]::new()
     foreach ($finding in @((Get-Val $App 'findings')) | Where-Object { $null -ne $_ }) {
         $rule = Get-Str $finding 'rule'; $status = Get-Str $finding 'status'
         $scope = if ($rule -in @('EnterpriseAdminOwner','Notes','Assignments') -or ($rule -eq 'RedirectUriSecurity' -and (Get-Str $App 'protocol') -eq 'SAML')) { 'SPN' } elseif ($rule -in @('RegistrationAdminOwner','ImplicitFlow','FederatedCredentials','RedirectUriSecurity')) { 'Registration' } else { 'Shared' }
-        $checkRows[$scope].Add(@($rule, ((Get-Val $icons $status) + ' ' + $status), (Get-Str $finding 'evidence')))
-        if ($status -eq 'FAIL') { $failedRows.Add(@($rule, $(switch ($scope) { 'SPN' { 'Enterprise application / SPN' } 'Registration' { 'App registration' } default { 'Both / combined' } }), '❌ FAIL', (Get-Str $finding 'evidence'))) }
+        $title = Get-Str $finding 'title'; if (-not $title) { $title = $rule }
+        $summary = Get-Str $finding 'summary'; if (-not $summary) { $summary = Get-Str $finding 'evidence' }
+        $actions = @((Get-Val $finding 'actions') | Where-Object { $null -ne $_ })
+        $nextSteps = for ($index = 0; $index -lt $actions.Count; $index++) { '{0}. {1}' -f ($index + 1), $actions[$index] }
+        $explanation = $summary; if ($actions.Count) { $explanation += ' Next steps: ' + ($nextSteps -join ' ') }
+        $checkRows[$scope].Add(@($title, ((Get-Val $icons $status) + ' ' + $status), $explanation))
+        if ($status -eq 'FAIL') {
+            $appliesTo = switch ($scope) { 'SPN' { 'Enterprise application / SPN' } 'Registration' { 'App registration' } default { 'Both / combined' } }
+            $failedChecks.Add(@{ Check = $rule; Title = $title; AppliesTo = $appliesTo; Evidence = Get-Str $finding 'evidence'; Summary = $summary; Actions = $actions })
+            [void]$failedText.AppendLine("`n#### " + (Convert-ReportCell $title) + "`n`n**Applies to:** " + $appliesTo + " · ❌ FAIL`n`n" + (Convert-ReportCell $summary) + "`n`n**How to fix**`n")
+            foreach ($step in $nextSteps) { [void]$failedText.AppendLine((Convert-ReportCell $step)) }
+            [void]$failedText.AppendLine("`n**Collected details:** " + (Convert-ReportCell (Get-Str $finding 'evidence')) + "`n")
+        }
     }
     [void]$spnText.Append((New-ReportSection 'SPN configuration checks' @('Check','Observation','Evidence') $checkRows.SPN))
     [void]$registrationText.Append((New-ReportSection 'App registration configuration checks' @('Check','Observation','Evidence') $checkRows.Registration))
     [void]$sharedText.Append((New-ReportSection 'Cross-object and credential checks' @('Check','Observation','Evidence') $checkRows.Shared))
-    $failures = if ($failedRows.Count) { New-ReportSection ('Failed checks ({0})' -f $failedRows.Count) @('Check','Applies to','Observation','Evidence') $failedRows } else { '' }
+    $failures = if ($failedChecks.Count) { "`n### Failed checks (" + $failedChecks.Count + ")`n" + $failedText.ToString() } else { '' }
     $panels = @{ failures = $failures; servicePrincipal = $spnText.ToString(); registration = $registrationText.ToString(); shared = $sharedText.ToString() }
     $content = $panels.failures + "`n## Enterprise application / SPN`n" + $panels.servicePrincipal + "`n## App registration`n" + $panels.registration + "`n## Combined assessment`n" + $panels.shared
-    if ($Split) { return @{ panels = $panels; markdown = $content; failedChecks = @($failedRows | ForEach-Object { @{ Check = $_[0]; AppliesTo = $_[1]; Evidence = $_[3] } }) } }
+    if ($Split) { return @{ panels = $panels; markdown = $content; failedChecks = $failedChecks.ToArray() } }
     return $content
 }
 
@@ -280,6 +292,8 @@ function Get-ReportExcelRows {
     )
     foreach ($check in $FailedChecks) {
         $scope = Get-Str $check 'AppliesTo'
+        $actionList = @(Get-Val $check 'Actions')
+        $correctionText = $(for ($index = 0; $index -lt $actionList.Count; $index++) { '{0}. {1}' -f ($index + 1), $actionList[$index] }) -join "`n"
         foreach ($source in $sources | Where-Object { $_.exists -and ($scope -eq 'Both / combined' -or $_.name -eq $scope) }) {
             $owners = @($source.owners | Where-Object { $null -ne $_ })
             if (-not $owners.Count) { $owners = @($null) }
@@ -290,6 +304,7 @@ function Get-ReportExcelRows {
                     Application = Get-Str $App 'displayName'; Notes = Get-Str $App 'notes'; AppId = Get-Str $App 'appId'
                     ServicePrincipalId = Get-Str $App 'servicePrincipalId'; RegistrationId = Get-Str $registration 'id'
                     Check = Get-Str $check 'Check'; Status = $(if ($IncludeAll) { Get-Str $App 'status' } else { 'FAIL' }); AppliesTo = $scope; Evidence = Get-Str $check 'Evidence'
+                    CheckTitle = Get-Str $check 'Title'; ActionSummary = Get-Str $check 'Summary'; CorrectiveActions = $correctionText
                     OwnerSource = $source.name; OwnerId = Get-Str $owner 'id'; OwnerName = Get-Str $owner 'displayName'
                     OwnerAccount = Get-Str $owner 'userPrincipalName'; UserEmail = Get-Str $owner 'userEmail'; ContactMatchStatus = $match
                 }
@@ -339,7 +354,7 @@ function Get-ReportCheckStatistics {
             $rule = Get-Str $_ 'rule'
             if (-not $rule -or $seen.ContainsKey($rule)) { return }
             $seen[$rule] = $true
-            if (-not $checks.ContainsKey($rule)) { $checks[$rule] = [ordered]@{ Check = $rule; PASS = 0; FAIL = 0; WARN = 0; UNKNOWN = 0; SKIPPED = 0; NOT_APPLICABLE = 0 } }
+            if (-not $checks.ContainsKey($rule)) { $checks[$rule] = [ordered]@{ Check = $rule; Title = Get-Str $_ 'title'; PASS = 0; FAIL = 0; WARN = 0; UNKNOWN = 0; SKIPPED = 0; NOT_APPLICABLE = 0 } }
             $status = Get-Str $_ 'status'
             if ($status -notin @('PASS','FAIL','WARN','UNKNOWN','SKIPPED','NOT_APPLICABLE')) { $status = 'UNKNOWN' }
             $checks[$rule][$status]++
@@ -352,6 +367,8 @@ function Get-ReportCheckStatistics {
 function Get-ReportResults {
     param($Report, [DateTimeOffset]$Now = [DateTimeOffset]::UtcNow)
     Update-ReportGovernance $Report
+    $Report['remediationConfiguration'] = Read-ReportRemediation
+    $configuration = Get-Val $Report 'ruleConfiguration'
     $apps = [Collections.Generic.List[object]]::new()
     @((Get-Val $Report 'applications')) | Where-Object { $null -ne $_ } | Sort-Object { Get-Str $_ 'displayName' } | ForEach-Object { $apps.Add($_) }
     $byId = @{}; $byAppId = @{}
@@ -365,6 +382,7 @@ function Get-ReportResults {
     $tests = [Collections.Generic.List[object]]::new()
     $apps | ForEach-Object {
         $app = $_
+        Set-ReportRemediation $app $Report['remediationConfiguration'] $configuration.rules
         $result = switch (Get-Str $app 'status') { 'FAIL' { 'Failed' } 'PASS' { 'Passed' } 'SKIPPED' { 'Skipped' } default { 'Investigate' } }
         $tags = [Collections.Generic.List[string]]::new()
         @((Get-Val $app 'findings')) | Where-Object { $null -ne $_ } | Sort-Object { Get-Str $_ 'rule' } | ForEach-Object {
@@ -487,6 +505,7 @@ function Export-ReportHtml {
     if (-not $assignments.Count) { throw 'Report template has no result assignment.' }
     $last = $assignments[$assignments.Count - 1]
     $view = Get-ReportResults $Report
+    $Report['reportView'] = $view
     $payload = ConvertTo-Json -InputObject $view -Depth 100 -Compress -EscapeHandling EscapeHtml
     $payload = $payload.Replace([string][char]0x2028, '\u2028').Replace([string][char]0x2029, '\u2029')
     $output = $template.Substring(0, $last.Index + $last.Length) + $payload + $template.Substring($sentinel.Index + $sentinel.Length)
@@ -502,7 +521,7 @@ function Export-ReportSummary {
     $results = Get-ReportResults $Report $now
     $checkRows = [Collections.Generic.List[object]]::new()
     foreach ($check in $results.CheckStatistics) {
-        $checkRows.Add(@($check.Check, $check.PASS, $check.FAIL, $check.WARN, $check.UNKNOWN, $check.SKIPPED, $check.NOT_APPLICABLE))
+        $checkRows.Add(@($check.Title, $check.PASS, $check.FAIL, $check.WARN, $check.UNKNOWN, $check.SKIPPED, $check.NOT_APPLICABLE))
     }
     $summary = [Text.StringBuilder]::new("| Application / report entry | Severity | Status |`n|---|:---:|:---:|`n")
     $details = [Collections.Generic.List[string]]::new()
@@ -532,6 +551,40 @@ function Export-ReportSummary {
     $template = $template.Replace('%TestDetails%', $included.ToString())
     if ([Text.Encoding]::UTF8.GetByteCount($template) -ge 1MB) { throw 'Summary exceeds the GitHub 1 MiB per-step limit.' }
     [IO.File]::WriteAllText($OutputPath, $template, [Text.UTF8Encoding]::new($false))
+}
+
+#= Stable mail-flow input; unmatched contacts remain visible without an inferred recipient
+function Export-ReportMailCsv {
+    param($Report, [string]$OutputPath)
+    $view = Get-Val $Report 'reportView'
+    if ($null -eq $view) { throw 'Generate reportView before exporting mail findings.' }
+    $columns = @('SchemaVersion','FindingKey','TenantId','TenantName','ReportGeneratedAtUtc','ExportedAtUtc','SourceRepository','ReportRunId','ReportRunUrl','Application','AppId','ServicePrincipalId','RegistrationId','Notes','CheckId','CheckTitle','Status','AppliesTo','OwnerSource','OwnerId','OwnerName','OwnerAccount','UserEmail','ContactMatchStatus','ReadyToSend','RecipientEmail','ActionSummary','CorrectiveActions','Evidence')
+    $exportedAt = [DateTimeOffset]::UtcNow.ToString('o')
+    $runUrl = if ($env:GITHUB_SERVER_URL -and $env:GITHUB_REPOSITORY -and $env:GITHUB_RUN_ID) { '{0}/{1}/actions/runs/{2}' -f $env:GITHUB_SERVER_URL.TrimEnd('/'), $env:GITHUB_REPOSITORY, $env:GITHUB_RUN_ID } else { '' }
+    $rows = @($view.Tests | ForEach-Object {
+        foreach ($item in @((Get-Val $_ 'ExcelRows')) | Where-Object { $null -ne $_ -and (Get-Str $_ 'Status') -eq 'FAIL' }) {
+            foreach ($required in @('AppId','Check','CheckTitle','ActionSummary','CorrectiveActions')) {
+                if ([string]::IsNullOrWhiteSpace((Get-Str $item $required))) { throw "Mail export requires $required for each failure. Regenerate the report with its remediation configuration." }
+            }
+            $email = Get-Str $item 'UserEmail'; $ready = $false
+            if ((Get-Str $item 'ContactMatchStatus') -eq 'MATCHED' -and -not [string]::IsNullOrWhiteSpace($email) -and $email -notmatch '[\r\n]') {
+                try { $address = [Net.Mail.MailAddress]::new($email); $ready = $address.Address -eq $email }
+                catch [FormatException] { $ready = $false }
+            }
+            $row = [ordered]@{
+                SchemaVersion = '1.0'; FindingKey = (@((Get-Str $Report 'tenantId'), (Get-Str $item 'AppId'), (Get-Str $item 'Check'), (Get-Str $item 'AppliesTo'), (Get-Str $item 'OwnerSource'), (Get-Str $item 'OwnerId')) -join '|')
+                TenantId = Get-Str $Report 'tenantId'; TenantName = Get-Str $Report 'tenantDisplayName'; ReportGeneratedAtUtc = Get-Str $Report 'generatedAtUtc'; ExportedAtUtc = $exportedAt
+                SourceRepository = $env:GITHUB_REPOSITORY; ReportRunId = $env:GITHUB_RUN_ID; ReportRunUrl = $runUrl
+            }
+            foreach ($column in $columns | Select-Object -Skip 9) {
+                $row[$column] = switch ($column) { 'CheckId' { Get-Str $item 'Check' } 'ReadyToSend' { $ready.ToString().ToLowerInvariant() } 'RecipientEmail' { if ($ready) { $email } else { '' } } default { Get-Str $item $column } }
+            }
+            [pscustomobject]$row
+        }
+    })
+    if ($rows.Count) { $rows | Select-Object $columns | Export-Csv -LiteralPath $OutputPath -NoTypeInformation -Encoding utf8 }
+    else { Set-Content -LiteralPath $OutputPath -Value ('"' + ($columns -join '","') + '"') -Encoding utf8 }
+    return $rows.Count
 }
 
 #= Flat CSV exports for evidence that administrators need to filter

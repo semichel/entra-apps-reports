@@ -73,13 +73,24 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: entra-apps-report-${{ github.run_number }}
-          path: reports/latest/
+          path: |
+            reports/latest/report.html
+            reports/latest/report.json
+          if-no-files-found: error
+      - name: Upload mail findings CSV
+        id: mail
+        uses: actions/upload-artifact@v4
+        with:
+          name: entra-apps-mail
+          path: reports/latest/mail-findings.csv
           if-no-files-found: error
       - name: Link report evidence artifact
         env:
           REPORT_ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+          MAIL_ARTIFACT_URL: ${{ steps.mail.outputs.artifact-url }}
         run: |
           "[Download HTML report and JSON data]($env:REPORT_ARTIFACT_URL)" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          "[Download mail findings CSV]($env:MAIL_ARTIFACT_URL)" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
       - name: Prepare HTML website
         run: |
           $ErrorActionPreference = 'Stop'

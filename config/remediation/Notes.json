@@ -1,0 +1,11 @@
+{
+  "title": "Enterprise application Notes",
+  "WARN": {
+    "summary": "The enterprise application's Notes field is empty.",
+    "actions": [
+      "In Entra admin center, open Enterprise applications > this application > Properties.",
+      "Enter a useful description of the application's purpose and responsible team in Notes, then save. Any additional company wording requirements can be added to this configuration later.",
+      "Run the report again. This check reads enterprise application Notes, not the app registration description."
+    ]
+  }
+}

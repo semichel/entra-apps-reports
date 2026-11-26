@@ -1,0 +1,17 @@
+{
+  "title": "Ownership comparison",
+  "WARN": {
+    "summary": "The owner lists differ, or both are empty. This comparison is informational and does not affect approval or severity.",
+    "actions": [
+      "Review the owner lists to understand who is responsible for each object. Different owners are allowed; no matching-owner change is required to pass.",
+      "Use the separate enterprise application and app registration administrator-owner checks to identify any required owner correction."
+    ]
+  },
+  "UNKNOWN": {
+    "summary": "Owner evidence is incomplete, so the lists cannot be compared. This informational result does not affect approval or severity.",
+    "actions": [
+      "Ask the report administrator to check owner collection if you need the comparison.",
+      "Do not add or remove owners merely to resolve this informational result. Required administrator ownership is checked separately."
+    ]
+  }
+}

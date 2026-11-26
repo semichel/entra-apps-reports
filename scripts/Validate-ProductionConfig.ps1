@@ -15,6 +15,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Report.Common.ps1')
+$null = Read-ReportRemediation
 $config = Read-ReportDeployment $ConfigPath -TenantId $TenantId -ClientId $ClientId
 Write-Host 'Production configuration is valid. No service was contacted.' -ForegroundColor Green
 Write-Host ('Report tenant label: {0}' -f (Get-Str $config 'tenantDisplayName')) -ForegroundColor Cyan

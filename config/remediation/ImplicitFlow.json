@@ -1,0 +1,18 @@
+{
+  "title": "Implicit token issuance",
+  "WARN": {
+    "summary": "Implicit access-token or ID-token issuance is enabled on the app registration.",
+    "actions": [
+      "Ask the application team whether implicit or hybrid token issuance is still required. Do not disable it without checking compatibility.",
+      "Where supported, migrate to authorization code flow with PKCE using a supported authentication library.",
+      "After the application has been updated, open App registrations > this application > Authentication, turn off the unused implicit-grant options and save. Run the report again."
+    ]
+  },
+  "UNKNOWN": {
+    "summary": "The report could not read both implicit token issuance settings.",
+    "actions": [
+      "Ask the report administrator to check app registration collection and Application.Read.All consent.",
+      "Collect a new report before deciding whether the application needs an authentication change."
+    ]
+  }
+}

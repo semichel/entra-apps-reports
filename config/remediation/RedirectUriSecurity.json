@@ -1,0 +1,12 @@
+{
+  "title": "Redirect address security",
+  "FAIL": {
+    "summary": "One or more configured redirect addresses are malformed or do not meet the configured transport rules.",
+    "actions": [
+      "Find the invalid addresses in the collected details and confirm which object owns them.",
+      "For web, SPA or native registrations, open App registrations > this application > Authentication. For SAML reply URLs, open Enterprise applications > this application > Single sign-on > Basic SAML Configuration.",
+      "Replace invalid or non-HTTPS production addresses with the exact approved callback addresses, coordinating the change with the application team. Localhost HTTP and supported native-app schemes are evaluated separately by the report.",
+      "Save and run the report again. A service with no redirect address does not need an invented URL to pass."
+    ]
+  }
+}
