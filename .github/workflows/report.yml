@@ -44,6 +44,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           ./scripts/Test-CollectionBatch.ps1
           ./scripts/Test-ExcelExport.ps1
+          ./scripts/Test-MailJson.ps1
       - name: Install modules
         run: |
           $ErrorActionPreference = 'Stop'
@@ -77,12 +78,12 @@ jobs:
             reports/latest/report.html
             reports/latest/report.json
           if-no-files-found: error
-      - name: Upload mail findings CSV
+      - name: Upload notification JSON
         id: mail
         uses: actions/upload-artifact@v4
         with:
           name: entra-apps-mail
-          path: reports/latest/mail-findings.csv
+          path: reports/latest/mail-findings.json
           if-no-files-found: error
       - name: Link report evidence artifact
         env:
@@ -90,7 +91,7 @@ jobs:
           MAIL_ARTIFACT_URL: ${{ steps.mail.outputs.artifact-url }}
         run: |
           "[Download HTML report and JSON data]($env:REPORT_ARTIFACT_URL)" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
-          "[Download mail findings CSV]($env:MAIL_ARTIFACT_URL)" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          "[Download notification JSON]($env:MAIL_ARTIFACT_URL)" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
       - name: Prepare HTML website
         run: |
           $ErrorActionPreference = 'Stop'

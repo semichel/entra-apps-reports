@@ -56,7 +56,7 @@ Edit the check's JSON file under [config/remediation](config/remediation) to cha
 
 Titles are shown in check statistics and application details. Stable rule IDs still identify filters, exclusions and failure columns. Excel includes `ActionSummary` and `CorrectiveActions`, and JSON retains structured summaries/actions per finding. Editing wording does not change rule decisions or perform any correction automatically.
 
-Each run also publishes **entra-apps-mail**, a separate Actions artifact containing `mail-findings.csv` for the mail workflow. It has one row per failed check and owner/source, with application IDs, the regular user's email, issue summary and correction steps. Only rows with `ReadyToSend = true` have a `RecipientEmail`; unresolved contacts remain visible without an inferred recipient. The report does not send mail. For a sender in another repository on the same company GitHub host, use a token with **Actions: read** on this report repository. See the [CSV contract and cross-repository download example](scripts/README.md#mail-flow-csv-contract).
+Each run also publishes **entra-apps-mail**, a separate Actions artifact containing `mail-findings.json`. This versioned JSON keeps all application check results, native tag arrays, scoped owners/contact matches, correction steps, credentials and expiry dates, permission evidence, roles and federation evidence. Notification filtering belongs to the consuming mailer, independently for each source; this report sends no mail. See the [notification JSON contract](scripts/README.md#notification-json-contract).
 
 ## Configuration
 
@@ -101,6 +101,6 @@ Developer handover and script responsibilities: [scripts/README.md](scripts/READ
 
 ## Local additions under review
 
-The existing report layout, charts, expandable details and manual UI exports remain in place. Collection writes report.json, report.html and the mail-flow export mail-findings.csv. The old inventory CSV files are not generated automatically; original manual export helpers remain available. Rebuild HTML and the mail CSV from saved data with `./scripts/Render-EntraAppsReport.ps1` without connecting to Graph.
+The existing report layout, charts, expandable details and manual UI exports remain in place. Collection writes report.json, report.html and the notification export mail-findings.json. The old inventory CSV files are not generated automatically; original manual export helpers remain available. Rebuild HTML and notification JSON from saved data with `./scripts/Render-EntraAppsReport.ps1` without connecting to Graph.
 
 Added checks: `ClientSecrets` warns for secret presence (secret date issues also warn); `ImplicitFlow` reviews token issuance with `checkImplicitFlow`; informational `OwnersMatch` compares complete registration/SPN owner sets when `requireMatchingOwners` is enabled (default true). Different owner lists warn without affecting approval or severity. Certificates retain their date-policy failures. Permission tags extend the existing tag filter with Requested/Granted names and Graph write/action review markers. App role names and authentication platform settings extend the existing details; the sanitized Graph application manifest is inside Advanced configuration and evidence. Graph overview adds a page alongside the original dashboard.

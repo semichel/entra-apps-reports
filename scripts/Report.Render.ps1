@@ -134,6 +134,14 @@ function Get-ReportGraphAccess {
     return @{ permissions = $permissions.ToArray(); roles = $roles; severity = $severity; configurationRisks = $configurationRisks.ToArray(); reasons = $reasons.ToArray(); coverageGaps = $gaps.ToArray(); roleStatus = $(if (-not (Get-Str $App 'servicePrincipalId')) { 'NOT_APPLICABLE' } elseif ($roleEvidence) { Get-Str $roleEvidence 'status' } else { 'NOT_COLLECTED' }); grantStatus = Get-Str $grants 'status' }
 }
 
+#= Keep finding ownership scope consistent across HTML, Excel and notifications
+function Get-ReportFindingScope {
+    param($App, [string]$Rule)
+    if ($Rule -in @('EnterpriseAdminOwner','Notes','Assignments') -or ($Rule -eq 'RedirectUriSecurity' -and (Get-Str $App 'protocol') -eq 'SAML')) { return 'SPN' }
+    if ($Rule -in @('RegistrationAdminOwner','ImplicitFlow','FederatedCredentials','RedirectUriSecurity')) { return 'Registration' }
+    return 'Shared'
+}
+
 #= Build application sections from dictionary-safe inventory fields
 function Get-ReportAppDetails {
     param($App, [DateTimeOffset]$Now, $ById, $ByAppId, $Access, [switch]$Split)
@@ -255,7 +263,7 @@ function Get-ReportAppDetails {
     $failedText = [Text.StringBuilder]::new()
     foreach ($finding in @((Get-Val $App 'findings')) | Where-Object { $null -ne $_ }) {
         $rule = Get-Str $finding 'rule'; $status = Get-Str $finding 'status'
-        $scope = if ($rule -in @('EnterpriseAdminOwner','Notes','Assignments') -or ($rule -eq 'RedirectUriSecurity' -and (Get-Str $App 'protocol') -eq 'SAML')) { 'SPN' } elseif ($rule -in @('RegistrationAdminOwner','ImplicitFlow','FederatedCredentials','RedirectUriSecurity')) { 'Registration' } else { 'Shared' }
+        $scope = Get-ReportFindingScope $App $rule
         $title = Get-Str $finding 'title'; if (-not $title) { $title = $rule }
         $summary = Get-Str $finding 'summary'; if (-not $summary) { $summary = Get-Str $finding 'evidence' }
         $actions = @((Get-Val $finding 'actions') | Where-Object { $null -ne $_ })
@@ -363,6 +371,18 @@ function Get-ReportCheckStatistics {
     return @($checks.Keys | Sort-Object | ForEach-Object { $checks[$_] })
 }
 
+#= Include enterprise applications and registrations without a local enterprise application once
+function Get-ReportApplications {
+    param($Report)
+    $apps = @((Get-Val $Report 'applications') | Where-Object { $null -ne $_ } | Sort-Object { Get-Str $_ 'displayName' })
+    $seen = @{}
+    foreach ($app in $apps) { $seen[(Get-Str $app 'appId')] = $true }
+    $apps
+    foreach ($registration in @((Get-Val $Report 'registrations')) | Where-Object { $null -ne $_ }) {
+        if (-not $seen.ContainsKey((Get-Str $registration 'appId'))) { @{ displayName = Get-Val $registration 'displayName'; appId = Get-Val $registration 'appId'; tags = Get-Val $registration 'tags'; registration = $registration; credentials = Get-Val $registration 'credentials'; status = Get-Val $registration 'status'; findings = Get-Val $registration 'findings' } }
+    }
+}
+
 #= Shared application entries and counters for HTML and Actions
 function Get-ReportResults {
     param($Report, [DateTimeOffset]$Now = [DateTimeOffset]::UtcNow)
@@ -370,13 +390,10 @@ function Get-ReportResults {
     $Report['remediationConfiguration'] = Read-ReportRemediation
     $configuration = Get-Val $Report 'ruleConfiguration'
     $apps = [Collections.Generic.List[object]]::new()
-    @((Get-Val $Report 'applications')) | Where-Object { $null -ne $_ } | Sort-Object { Get-Str $_ 'displayName' } | ForEach-Object { $apps.Add($_) }
+    @(Get-ReportApplications $Report) | ForEach-Object { $apps.Add($_) }
     $byId = @{}; $byAppId = @{}
     foreach ($app in $apps) {
         $id = Get-Str $app 'servicePrincipalId'; if ($id) { $byId[$id] = $app }; $id = Get-Str $app 'appId'; if ($id) { $byAppId[$id] = $app }
-    }
-    foreach ($registration in @((Get-Val $Report 'registrations')) | Where-Object { $null -ne $_ }) {
-        if (-not $byAppId.ContainsKey([string](Get-Val $registration 'appId'))) { $apps.Add(@{ displayName = Get-Val $registration 'displayName'; appId = Get-Val $registration 'appId'; registration = $registration; credentials = Get-Val $registration 'credentials'; status = Get-Val $registration 'status'; findings = Get-Val $registration 'findings' }) }
     }
     $mode = Get-Str $Report 'mode'; if (-not $mode) { $mode = 'UNKNOWN' }
     $tests = [Collections.Generic.List[object]]::new()
@@ -553,38 +570,75 @@ function Export-ReportSummary {
     [IO.File]::WriteAllText($OutputPath, $template, [Text.UTF8Encoding]::new($false))
 }
 
-#= Stable mail-flow input; unmatched contacts remain visible without an inferred recipient
-function Export-ReportMailCsv {
+#= Preserve collection provenance when rebuilding notifications from saved report data
+function Get-ReportNotificationSource {
+    param($Report)
+    $saved = Get-Val $Report 'notificationSource'
+    if ($null -ne $saved) { return $saved }
+    $runUrl = if ($env:GITHUB_SERVER_URL -and $env:GITHUB_REPOSITORY -and $env:GITHUB_RUN_ID) { '{0}/{1}/actions/runs/{2}' -f $env:GITHUB_SERVER_URL.TrimEnd('/'), $env:GITHUB_REPOSITORY, $env:GITHUB_RUN_ID } else { '' }
+    return [ordered]@{ repository = $env:GITHUB_REPOSITORY; branch = $env:GITHUB_REF_NAME; runId = $env:GITHUB_RUN_ID; runUrl = $runUrl }
+}
+
+#= Keep matched recipients explicit and use native JSON booleans
+function Convert-ReportNotificationOwner {
+    param($Row)
+    $email = Get-Str $Row 'UserEmail'; $ready = $false
+    if ((Get-Str $Row 'ContactMatchStatus') -eq 'MATCHED' -and -not [string]::IsNullOrWhiteSpace($email) -and $email -notmatch '[\r\n;,]') {
+        try { $address = [Net.Mail.MailAddress]::new($email); $ready = $address.Address -ceq $email -and $email.Contains('@') }
+        catch [FormatException] { $ready = $false }
+    }
+    return [ordered]@{
+        source = Get-Str $Row 'OwnerSource'; id = Get-Str $Row 'OwnerId'; name = Get-Str $Row 'OwnerName'; account = Get-Str $Row 'OwnerAccount'
+        userEmail = $email; contactMatchStatus = Get-Str $Row 'ContactMatchStatus'; readyToSend = $ready; recipientEmail = $(if ($ready) { $email } else { $null })
+    }
+}
+
+#= Export every check with structured correction steps and its affected ownership scope
+function Convert-ReportNotificationFinding {
+    param($App, $Finding, [string]$TenantId)
+    $rule = Get-Str $Finding 'rule'; $scope = Get-ReportFindingScope $App $rule
+    $appliesTo = switch ($scope) { 'SPN' { 'Enterprise application / SPN' } 'Registration' { 'App registration' } default { 'Both / combined' } }
+    $title = Get-Str $Finding 'title'; if (-not $title) { $title = $rule }
+    $summary = Get-Str $Finding 'summary'; if (-not $summary) { $summary = Get-Str $Finding 'evidence' }
+    return [ordered]@{
+        key = @($TenantId, (Get-Str $App 'appId'), $rule, $appliesTo) -join '|'
+        checkId = $rule; title = $title; status = Get-Str $Finding 'status'; appliesTo = $appliesTo
+        summary = $summary; actions = @((Get-Val $Finding 'actions') | Where-Object { $null -ne $_ }); evidence = Get-Str $Finding 'evidence'
+    }
+}
+
+#= Project collected application data into the stable notification contract without presentation markup
+function Get-ReportNotificationObject {
+    param($App, $Entry, [string]$TenantId)
+    $tags = @(@((Get-Val $App 'tags')) + @((Get-Val (Get-Val $App 'registration') 'tags')) + @((Get-Val $Entry 'Tag')) | Where-Object { $_ -is [string] -and -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+    $owners = @(Get-ReportExcelRows $App -IncludeAll | ForEach-Object { Convert-ReportNotificationOwner $_ })
+    $findings = @((Get-Val $App 'findings') | Where-Object { $null -ne $_ } | ForEach-Object { Convert-ReportNotificationFinding $App $_ $TenantId })
+    return [ordered]@{
+        objectType = 'entra.application'; appId = Get-Str $App 'appId'; name = Get-Str $App 'displayName'
+        servicePrincipalId = Get-Str $App 'servicePrincipalId'; registrationId = Get-Str (Get-Val $App 'registration') 'id'; notes = Get-Str $App 'notes'
+        tags = $tags; severity = Get-Str $Entry 'Severity'; owners = $owners; findings = $findings
+        credentials = @((Get-Val $App 'credentials') | Where-Object { $null -ne $_ })
+        permissions = [ordered]@{ requested = @((Get-Val (Get-Val $App 'registration') 'requiredResourceAccess') | Where-Object { $null -ne $_ }); applicationGrants = Get-Val $App 'applicationPermissionGrants' }
+        directoryRoles = Get-Val $App 'directoryRoles'; federatedCredentials = Get-Val (Get-Val $App 'registration') 'federatedIdentityCredentials'
+    }
+}
+
+#= Publish structured notification data; filtering belongs to the consumer
+function Export-ReportMailJson {
     param($Report, [string]$OutputPath)
     $view = Get-Val $Report 'reportView'
-    if ($null -eq $view) { throw 'Generate reportView before exporting mail findings.' }
-    $columns = @('SchemaVersion','FindingKey','TenantId','TenantName','ReportGeneratedAtUtc','ExportedAtUtc','SourceRepository','ReportRunId','ReportRunUrl','Application','AppId','ServicePrincipalId','RegistrationId','Notes','CheckId','CheckTitle','Status','AppliesTo','OwnerSource','OwnerId','OwnerName','OwnerAccount','UserEmail','ContactMatchStatus','ReadyToSend','RecipientEmail','ActionSummary','CorrectiveActions','Evidence')
-    $exportedAt = [DateTimeOffset]::UtcNow.ToString('o')
-    $runUrl = if ($env:GITHUB_SERVER_URL -and $env:GITHUB_REPOSITORY -and $env:GITHUB_RUN_ID) { '{0}/{1}/actions/runs/{2}' -f $env:GITHUB_SERVER_URL.TrimEnd('/'), $env:GITHUB_REPOSITORY, $env:GITHUB_RUN_ID } else { '' }
-    $rows = @($view.Tests | ForEach-Object {
-        foreach ($item in @((Get-Val $_ 'ExcelRows')) | Where-Object { $null -ne $_ -and (Get-Str $_ 'Status') -eq 'FAIL' }) {
-            foreach ($required in @('AppId','Check','CheckTitle','ActionSummary','CorrectiveActions')) {
-                if ([string]::IsNullOrWhiteSpace((Get-Str $item $required))) { throw "Mail export requires $required for each failure. Regenerate the report with its remediation configuration." }
-            }
-            $email = Get-Str $item 'UserEmail'; $ready = $false
-            if ((Get-Str $item 'ContactMatchStatus') -eq 'MATCHED' -and -not [string]::IsNullOrWhiteSpace($email) -and $email -notmatch '[\r\n]') {
-                try { $address = [Net.Mail.MailAddress]::new($email); $ready = $address.Address -eq $email }
-                catch [FormatException] { $ready = $false }
-            }
-            $row = [ordered]@{
-                SchemaVersion = '1.0'; FindingKey = (@((Get-Str $Report 'tenantId'), (Get-Str $item 'AppId'), (Get-Str $item 'Check'), (Get-Str $item 'AppliesTo'), (Get-Str $item 'OwnerSource'), (Get-Str $item 'OwnerId')) -join '|')
-                TenantId = Get-Str $Report 'tenantId'; TenantName = Get-Str $Report 'tenantDisplayName'; ReportGeneratedAtUtc = Get-Str $Report 'generatedAtUtc'; ExportedAtUtc = $exportedAt
-                SourceRepository = $env:GITHUB_REPOSITORY; ReportRunId = $env:GITHUB_RUN_ID; ReportRunUrl = $runUrl
-            }
-            foreach ($column in $columns | Select-Object -Skip 9) {
-                $row[$column] = switch ($column) { 'CheckId' { Get-Str $item 'Check' } 'ReadyToSend' { $ready.ToString().ToLowerInvariant() } 'RecipientEmail' { if ($ready) { $email } else { '' } } default { Get-Str $item $column } }
-            }
-            [pscustomobject]$row
-        }
-    })
-    if ($rows.Count) { $rows | Select-Object $columns | Export-Csv -LiteralPath $OutputPath -NoTypeInformation -Encoding utf8 }
-    else { Set-Content -LiteralPath $OutputPath -Value ('"' + ($columns -join '","') + '"') -Encoding utf8 }
-    return $rows.Count
+    if ($null -eq $view) { throw 'Generate reportView before exporting notification data.' }
+    $entries = @{}
+    foreach ($entry in @((Get-Val $view 'Tests'))) { if (Get-Str $entry 'AppId') { $entries[(Get-Str $entry 'AppId')] = $entry } }
+    $tenant = Get-Str $Report 'tenantId'
+    $objects = @(Get-ReportApplications $Report | ForEach-Object { Get-ReportNotificationObject $_ (Get-Val $entries (Get-Str $_ 'appId')) $tenant })
+    $document = [ordered]@{
+        kind = 'entra-apps-notifications'; schemaVersion = '1.0'; source = Get-ReportNotificationSource $Report
+        report = [ordered]@{ tenantId = $tenant; tenantName = Get-Str $Report 'tenantDisplayName'; generatedAtUtc = Format-ReportDate (Get-Val $Report 'generatedAtUtc'); exportedAtUtc = [DateTimeOffset]::UtcNow.ToString('o') }
+        objects = $objects
+    }
+    $document | ConvertTo-Json -Depth 100 -EscapeHandling EscapeHtml -WarningAction Stop | Set-Content -LiteralPath $OutputPath -Encoding utf8
+    return $objects.Count
 }
 
 #= Flat CSV exports for evidence that administrators need to filter

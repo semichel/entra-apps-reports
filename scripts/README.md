@@ -8,7 +8,7 @@ This directory contains the production report pipeline. GitHub Actions is the su
 |---|---|---|
 | [Validate-ProductionConfig.ps1](Validate-ProductionConfig.ps1) | Offline validation of reader IDs, tenant label, rules and exclusions. Does not authenticate or call Graph. | Script parameters: `ConfigPath`, `TenantId`, `ClientId`. |
 | [Export-EntraAppsReport.ps1](Export-EntraAppsReport.ps1) | Collects inventory using an existing Graph context, enriches it, evaluates rules and writes artifacts. | Script parameters: `ConfigPath`, `OutputDirectory`, `TenantId`, `ClientId`. |
-| [Render-EntraAppsReport.ps1](Render-EntraAppsReport.ps1) | Regenerates HTML and the mail CSV beside it from saved JSON without Graph. | `DataPath`, optional `OutputPath`. |
+| [Render-EntraAppsReport.ps1](Render-EntraAppsReport.ps1) | Regenerates HTML and notification JSON beside it from saved JSON without Graph. | `DataPath`, optional `OutputPath`. |
 | [Write-ActionSummary.ps1](Write-ActionSummary.ps1) | Optional legacy Markdown export from saved JSON; no longer called by the production workflow. Does not call Graph. | Required parameters: `ReportPath`, `ArtifactUrl`, `OutputPath`. |
 | [Report.Common.ps1](Report.Common.ps1) | Dictionary helpers, Graph requests and pagination, logging, base inventory construction, configuration/context validation and artifact orchestration. Loads the rule library. | `Get-Val`, `Get-Str`, `Invoke-MgGetAll`, `Get-LiveAppReport`, `Read-ReportDeployment`, `Assert-ReportDeploymentContext`, `Export-AppReport`. |
 | [Report.Batch.ps1](Report.Batch.ps1) | Complete relationship reads in batches of up to 20 GETs, with per-response retry/pagination and core-versus-optional failures. Cache lasts only for the current collection. | `Get-ReportRelationshipEvidence`, `Invoke-ReportBatchGetAll`. |
@@ -27,8 +27,8 @@ The reader requires Microsoft Graph application permissions `Application.Read.Al
 3. `Export-EntraAppsReport.ps1` validates the connected tenant, client and Global cloud against the supplied IDs before any inventory requests.
 4. App registrations and a full service-principal catalog are each collected once. The catalog includes permission definitions for resource principals; only objects with `servicePrincipalType = Application` become enterprise report entries. Microsoft-owned objects are categorized by owning tenant IDs. Relationship collections are prefetched in batches of up to 20 GETs: SPN owners when expansion is incomplete, assignments, granted app roles, registration owners when needed, and federation. Core owner/assignment failures stop collection; optional failures remain UNAVAILABLE with no partial records.
 5. `Add-ExtendedEvidence` reuses the registrations, full principal catalog and prefetched evidence, resolving permission names without another catalog download or relationship query. Active directory role assignments are read once with `$expand=roleDefinition` and pagination; only assignments to reported application principals are retained. User profiles are loaded once with pagination and indexed by object ID and employee ID for owner contact matching.
-6. `Export-AppReport` evaluates rules and writes JSON, HTML and `mail-findings.csv`. It removes the four previous automatic inventory CSV files after successful rendering. Manual CSV helper functions and original UI exports are retained.
-7. The workflow uploads JSON/HTML as the report artifact and `mail-findings.csv` as the separate, consistently named `entra-apps-mail` artifact. It copies only the self-contained HTML to `site/index.html` with `.nojekyll` for a separate Pages artifact. Graph is disconnected in a `finally` block during collection.
+6. `Export-AppReport` evaluates rules and writes JSON, HTML and `mail-findings.json`. It removes the previous automatic inventory CSV files and mail-findings.csv after successful rendering. Manual CSV helper functions and original UI exports are retained.
+7. The workflow uploads JSON/HTML as the report artifact and `mail-findings.json` as the separate, consistently named `entra-apps-mail` artifact. It copies only the self-contained HTML to `site/index.html` with `.nojekyll` for a separate Pages artifact. Graph is disconnected in a `finally` block during collection.
 8. The dependent deploy job checks the Pages public flag and repository visibility through the API. Unknown visibility is rejected. Public Pages is permitted for public repositories; private/internal repositories require private Pages access. It deploys the Pages artifact to `github-pages` and writes a website link. A private/internal repository alone is insufficient. The deploy job has Pages write access but no Azure login; keeping its environment separate preserves the report job's existing Entra OIDC subject. Workflow-level concurrency prevents overlapping report deployments.
 
 The current workflow is manually dispatched and has a 30-minute timeout. A successful workflow means collection and publication succeeded; FAIL findings do not themselves cause a nonzero script exit. There is no separate notification or remediation step.
@@ -83,7 +83,7 @@ Disabled checks and app exclusions are applied after evaluation and remain visib
 |---|---|
 | `report.json` | Full collected report and saved configuration. |
 | `report.html` | Self-contained interactive report, including unmatched registrations and report scope. |
-| `mail-findings.csv` | Automatic mail-flow input: one row per failed check and owner/source, with editable summaries/actions and explicit contact eligibility. Separate Actions artifact: `entra-apps-mail`. |
+| `mail-findings.json` | Automatic mail-flow input: one row per failed check and owner/source, with editable summaries/actions and explicit contact eligibility. Separate Actions artifact: `entra-apps-mail`. |
 | `findings.csv` (manual export only) | Findings for retained enterprise applications, including their registration checks. Standalone registration findings are not exported here. |
 | `owners.csv` (manual export only) | Owner account and contact-match evidence for both enterprise applications and all registrations. |
 | `assignments.csv`, `credentials.csv` (manual export only) | Detailed evidence for retained enterprise applications; these exclude standalone registrations. |
@@ -113,71 +113,30 @@ HTML generation patches specific anchors in the bundled JavaScript and replaces 
 
 `Get-ReportGraphAccess` applies the access and configuration ranking documented in the root README. It never changes a configuration finding. Granted Graph app roles are deduplicated against requested app roles; delegated requests never become verified grants. The Critical role IDs are the stable Global Administrator and Privileged Role Administrator template IDs. All other direct active directory roles are conservatively High, including reader roles. Configuration FAIL/WARN/UNKNOWN findings contribute their documented severity, saved in `configurationRisks`; PASS/SKIPPED/NOT_APPLICABLE do not. The highest matching rule wins. Permission-name operation matching is a review heuristic. Missing grant/role/catalog evidence stays visible; Info does not mean access is verified safe. Severity charts include all application statuses and exclude the report-scope entry. Home covers all applications; Graph covers applications with observed Graph permissions or directory roles. The Graph access-distribution chart counts every application once, with write grants taking precedence, and reports applications with no observed Graph permissions separately. These charts show tenant totals, independent of the application-list filters. Offline rendering recalculates ranking from saved evidence; older snapshots show role evidence as NOT_COLLECTED until a fresh collection is run.
 
-Inventory text is escaped for Markdown/HTML, the embedded JSON uses HTML escaping, and spreadsheet exports protect against formula interpretation. The machine-readable mail CSV preserves exact data and quoted multiline values; consuming mail flows must treat it as data and HTML-encode fields if building an HTML message. Preserve these boundaries when adding fields.
+Inventory text is escaped for Markdown/HTML, the embedded JSON uses HTML escaping, and spreadsheet exports protect against formula interpretation. The machine-readable notification JSON preserves exact data and structured arrays; consuming mail flows must treat it as data and HTML-encode fields if building an HTML message. Preserve these boundaries when adding fields.
 
-## Mail-flow CSV contract
+## Notification JSON contract
 
-The producing workflow uploads `reports/latest/mail-findings.csv` as **entra-apps-mail**. The artifact name is the same in each run; the source **run ID** selects the exact export. Retention follows repository/organization artifact settings. Only FAIL findings are included; WARN/UNKNOWN/informational results do not become mail failures. Empty reports still produce a header-only CSV. Rows with no usable recipient remain present for review.
+The producing workflow uploads `reports/latest/mail-findings.json` as **entra-apps-mail**. Collection still writes the full `report.json` and HTML report; the notification artifact is a compact projection of that collected data, independent of HTML presentation and Excel rows.
 
-| Columns | Meaning |
+| Field | Meaning |
 |---|---|
-| `SchemaVersion` | CSV contract version, currently `1.0`. |
-| `FindingKey` | Stable combination of tenant, app, check, scope, owner source and owner ID. Use with the run ID in a sending ledger to avoid processing the same delivery twice. |
-| `TenantId`, `TenantName`, `ReportGeneratedAtUtc`, `ExportedAtUtc` | Source tenant and data/export times. Rebuilding a saved report does not make its inventory newer. |
-| `SourceRepository`, `ReportRunId`, `ReportRunUrl` | Producer run identity in Actions. Blank for a local export. |
-| `Application`, `AppId`, `ServicePrincipalId`, `RegistrationId`, `Notes` | Application name, identifiers and enterprise application Notes. |
-| `CheckId`, `CheckTitle`, `Status`, `AppliesTo` | Stable rule ID, friendly check title, FAIL status and affected object scope. |
-| `OwnerSource`, `OwnerId`, `OwnerName`, `OwnerAccount` | The owner account and whether it owns the SPN or registration. |
-| `UserEmail`, `ContactMatchStatus` | Regular-user contact evidence matched through employee ID. No fallback from owner UPN is made. |
-| `ReadyToSend`, `RecipientEmail` | `ReadyToSend` is `true` only for MATCHED contacts with one plain email address of valid format; only then is `RecipientEmail` filled. This is contact eligibility, not proof of mailbox deliverability or permission to send. |
-| `ActionSummary`, `CorrectiveActions`, `Evidence` | Configured issue summary, numbered correction steps separated by newlines, and original collected details. These are dynamic mail-template fields. |
+| `kind`, `schemaVersion` | Notification contract marker `entra-apps-notifications` and version `1.0`. |
+| `source` | Producer repository, branch, runId and runUrl. Saved as notificationSource in report.json so a rebuild retains its origin. |
+| `report` | Data tenant ID/name, original generatedAtUtc and exportedAtUtc. Rebuilding does not make inventory newer. |
+| `objects[]` | Each enterprise application with its linked registration, plus standalone registrations, once per appId. |
+| `objects[].tags[]` | Native application/registration tags plus the report's existing check and permission tags. |
+| `objects[].owners[]` | Source, owner IDs/name/account, matched userEmail, contactMatchStatus, native boolean readyToSend and recipientEmail. Unresolved contacts have no inferred recipient. |
+| `objects[].findings[]` | Stable key, checkId, title, status, appliesTo, summary, actions array and evidence. All statuses are exported. |
+| Additional object evidence | servicePrincipalId, registrationId, Notes, severity, credentials with expiry dates, permissions, directoryRoles and federatedCredentials. Availability wrappers are retained. |
 
-The CSV uses UTF-8, comma delimiters and standard quoting. Use `Import-Csv` or another CSV parser; do not split lines or commas manually because names, Notes and correction steps can contain both. Existing spreadsheet export behavior is unchanged.
+Arrays remain arrays for zero or one item. Empty reports retain source/report metadata and `objects: []`. No credential values or private keys are exported. The producer applies its governance exclusions as visible SKIPPED results; notification selection by checks, status or tags belongs to each mailer source config.
 
-### Read from a different repository on the same GitHub host
+Consumers must validate schema, source repository/branch/run, collection freshness and recipients before sending. Scope is Enterprise application / SPN, App registration or Both / combined; a scoped finding must only target owners of the affected object. FAIL/WARN/UNKNOWN correction text comes from config/remediation; PASS, SKIPPED and NOT_APPLICABLE can have empty actions.
 
-Runners do not connect directly to one another. The mail workflow downloads the producer's artifact from GitHub. Its default `GITHUB_TOKEN` is scoped to its own repository and cannot read the other private report repository. Use a GitHub App installation token with **Actions: read** on the report repository, or a fine-grained personal access token restricted to that repository and permission. No Graph write or mail-send permissions are added to this report project. See [GitHub token scope](https://docs.github.com/en/actions/concepts/security/github_token) and [cross-run/repository artifact downloads](https://github.com/actions/download-artifact#download-artifacts-from-other-workflow-runs-or-repositories).
+A consumer on the same GitHub host can download this artifact using a GitHub App installed on this repository with **Actions: read**, or a restricted token with that permission. It then reads the document with `Get-Content -Raw | ConvertFrom-Json -AsHashtable -Depth 100`. Delivery policy and state belong to the mailer.
 
-The following are steps for the future mail workflow, not a new sender workflow in this repository. `REPORT_ARTIFACT_TOKEN` represents a token approved on your company host; a GitHub App workflow can supply its generated token instead. Select a completed successful run of this producer workflow on `main`, then download from that exact run. A workflow in another repository cannot use `workflow_run` as a cross-repository trigger; poll from its schedule/manual trigger or arrange an explicit dispatch later.
-
-```yaml
-env:
-  REPORT_REPOSITORY: saabgroup/entra-app_registration_report
-
-steps:
-  - name: Find latest successful report run
-    id: report
-    shell: pwsh
-    env:
-      GH_TOKEN: ${{ secrets.REPORT_ARTIFACT_TOKEN }}
-    run: |
-      $ErrorActionPreference = 'Stop'
-      $env:GH_HOST = ([uri]$env:GITHUB_SERVER_URL).Host
-      $json = gh api "repos/$env:REPORT_REPOSITORY/actions/workflows/report.yml/runs?branch=main&status=success&per_page=1"
-      if ($LASTEXITCODE -ne 0) { throw 'Report run lookup failed.' }
-      $runs = ($json | ConvertFrom-Json -AsHashtable).workflow_runs
-      if (-not $runs.Count) { throw 'No successful report run is available.' }
-      "run-id=$($runs[0].id)" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
-
-  - name: Download mail CSV from the report repository
-    uses: actions/download-artifact@v4
-    with:
-      name: entra-apps-mail
-      repository: ${{ env.REPORT_REPOSITORY }}
-      run-id: ${{ steps.report.outputs.run-id }}
-      github-token: ${{ secrets.REPORT_ARTIFACT_TOKEN }}
-      path: ${{ runner.temp }}/report-mail
-
-  - name: Import eligible mail rows
-    shell: pwsh
-    run: |
-      $path = Join-Path $env:RUNNER_TEMP 'report-mail/mail-findings.csv'
-      $rows = @(Import-Csv -LiteralPath $path -Encoding utf8)
-      $eligible = @($rows | Where-Object { $_.ReadyToSend -eq 'true' -and $_.RecipientEmail })
-      Write-Host "$($eligible.Count) eligible rows; $($rows.Count - $eligible.Count) unresolved contacts. No mail sent."
-```
-
-Before the sender actually delivers messages, validate schema, expected tenant/repository and source run, check report freshness and skip runs already processed. Use `RecipientEmail`, `Application`, `CheckTitle`, `ActionSummary` and `CorrectiveActions` as template fields. Group by recipient if one message should summarize several findings. Credentials, delivery permissions, sending policy and the delivery ledger belong to the mail workflow; they are not implemented here.
+**CSV migration:** The stable artifact name stays entra-apps-mail, but its file changes to mail-findings.json. Deploy the producer, generate a fresh artifact, then update the mailer to dataFile and its per-source JSON config. Older CSV artifacts do not satisfy the new contract. Manual Excel and evidence CSV exports remain available.
 
 ## Maintaining the code
 
@@ -193,7 +152,7 @@ Keep StrictMode and terminating errors. Use four-space indentation and `#=` func
 
 ## Developer verification
 
-Run `./scripts/Test-CollectionBatch.ps1` for synthetic batch transport, retry, pagination, evidence completeness, credential sanitization and full sequential-versus-batched governance comparisons. Both offline test scripts run in the workflow before module installation and Graph authentication.
+Run `./scripts/Test-MailJson.ps1` for producer contract, native arrays, owner scope, tags, credential dates, standalone applications and preserved provenance. Run `./scripts/Test-CollectionBatch.ps1` for synthetic batch transport, retry, pagination, evidence completeness, credential sanitization and full sequential-versus-batched governance comparisons. The offline checks run in the workflow before module installation and Graph authentication.
 
 Run `./scripts/Test-ExcelExport.ps1` with PowerShell 7 and Node.js for offline synthetic checks covering owner scope, multiple/missing contacts, standalone registrations, clipboard columns, formula-prefix escaping and clipboard failures. No Graph authentication is required.
 

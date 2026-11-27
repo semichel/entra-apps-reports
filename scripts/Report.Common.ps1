@@ -188,7 +188,7 @@ function New-AppReport {
         appId = Get-Str $Principal 'appId'; accountEnabled = Get-Val $Principal 'accountEnabled'
         protocol = $protocol; preferredSingleSignOnMode = $mode; status = 'UNKNOWN'
         registrationAvailable = ($null -ne $Registration); assignmentRequired = $assignmentRequired
-        owners = $ownerList; assignments = $assignmentList; redirectUris = $redirects
+        owners = $ownerList; assignments = $assignmentList; redirectUris = $redirects; tags = @((Get-Val $Principal 'tags') | Where-Object { $null -ne $_ })
         identifierUris = @(Get-Val $Registration 'identifierUris')
         samlEntityIdentifiers = @(Get-Val $Principal 'servicePrincipalNames')
         samlSettings = Get-Val $Principal 'samlSingleSignOnSettings'
@@ -213,22 +213,23 @@ function Read-ReportDatabase {
     return $report
 }
 
-#= Store report data, render HTML and prepare the mail-flow CSV
+#= Store report data, render HTML and prepare the notification JSON
 function Export-AppReport {
     param($Report, [string]$OutputDirectory)
     Update-ReportGovernance $Report
     . (Join-Path $PSScriptRoot 'Report.Render.ps1')
     $Report['schemaVersion'] = '3.0'
     $Report['reportView'] = Get-ReportResults $Report
+    $Report['notificationSource'] = Get-ReportNotificationSource $Report
     New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
     Write-ReportLog 'Writing report.json.'
     $Report | ConvertTo-Json -Depth 100 -EscapeHandling EscapeHtml -WarningAction Stop | Set-Content -LiteralPath (Join-Path $OutputDirectory 'report.json') -Encoding utf8
     . (Join-Path $PSScriptRoot 'Report.Render.ps1')
     Write-ReportLog 'Rendering the interactive HTML report with PowerShell.'
     Export-ReportHtml $Report (Join-Path $OutputDirectory 'report.html')
-    $mailRows = Export-ReportMailCsv $Report (Join-Path $OutputDirectory 'mail-findings.csv')
-    Write-ReportLog ("Writing mail-findings.csv: $mailRows failed-check / owner rows. No email is sent.")
-    foreach ($legacyFile in @('findings.csv','owners.csv','assignments.csv','credentials.csv')) {
+    $mailObjects = Export-ReportMailJson $Report (Join-Path $OutputDirectory 'mail-findings.json')
+    Write-ReportLog ("Writing mail-findings.json: $mailObjects application objects with all check results. No email is sent.")
+    foreach ($legacyFile in @('findings.csv','owners.csv','assignments.csv','credentials.csv','mail-findings.csv')) {
         $legacyPath = Join-Path $OutputDirectory $legacyFile
         if (Test-Path -LiteralPath $legacyPath -PathType Leaf) { Remove-Item -LiteralPath $legacyPath }
     }
